@@ -1,105 +1,100 @@
 <div align="center">
 
-# Synapse
+# ⚡ Synapse
 
-### One file. Your AI's entire memory.
+### **One file. Your AI's entire memory.**
 
-**The open-source memory layer for AI agents. 45,000× faster than MV2. Single-file portability. Rust core. MCP-native.**
+```
+ 45,091×  faster search   ·   9,074×  faster insert   ·   5.8×  smaller file
+```
+
+**The open standard for agent memory.** Rust core. SQLite + FTS5 + sqlite-vec. MCP-native. MIT.
 
 [![CI](https://github.com/Supersynergy/synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse/actions)
+[![Release](https://img.shields.io/github/v/tag/Supersynergy/synapse?label=release&color=blueviolet)](https://github.com/Supersynergy/synapse/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.91+-orange.svg)]()
-[![Release](https://img.shields.io/github/v/tag/Supersynergy/synapse?label=release)](https://github.com/Supersynergy/synapse/releases)
+[![Stars](https://img.shields.io/github/stars/Supersynergy/synapse?style=social)](https://github.com/Supersynergy/synapse/stargazers)
 
-**by [Maxim Supersynergy](https://github.com/Supersynergy)** — creator of SuperKnow, SupersynergyCRM, ZeroClaw, and the Synapse memory standard.
-
-[Quickstart](#quickstart) · [Why](#why) · [Benchmarks](#benchmarks) · [Compare](#compare-everything) · [Use-Cases](#the-20-use-cases) · [Security](#security) · [Roadmap](#roadmap)
+**[⭐ Star the repo](https://github.com/Supersynergy/synapse)  ·  [🚀 Quickstart (30s)](#-quickstart-30-seconds)  ·  [📊 Benchmarks](#-benchmarks-that-actually-run)  ·  [🧠 20 Use-Cases](#-20-ways-to-use-it)  ·  [🗺 Roadmap](#-roadmap)**
 
 </div>
 
-<!-- SEO keywords: AI agent memory, LLM memory layer, RAG single file, vector database Rust, FTS5 vector search, Claude Code plugin, MCP server memory, embedded vector database, Qdrant alternative, Pinecone alternative, Weaviate alternative, sqlite-vec production, hybrid search BM25 RRF, semantic search Rust, portable knowledge base, agent memory store, persistent LLM memory, memvid alternative, MV2 successor, agent brain format, brainpack format, RAG without server, RAG no Python, single binary vector store, MCP native memory -->
+<!-- SEO: AI agent memory, LLM memory layer, RAG single file, vector database Rust, FTS5 vector search, Claude Code MCP plugin, MCP server memory, embedded vector database, Qdrant alternative, Pinecone alternative, Weaviate alternative, Chroma alternative, memvid alternative, MV2 successor, sqlite-vec production, hybrid search BM25 RRF, semantic search Rust, portable knowledge base, agent brain format, brainpack format, RAG without server, RAG no Python, single binary vector store, MCP native memory, offline AI memory, self-hosted vector database, open source vector database, agent memory standard -->
 
 ---
 
-## The Problem
+## 🔥 Why you're going to star this repo in 60 seconds
 
-Your AI agent has a 200K token context. Zero memory between sessions.
+**Your AI has a 200K-token context and zero memory between sessions.**
 
-Every workaround is a fresh pipeline: **Qdrant**, a Python embedder, **Redis**, **Postgres**, a Docker compose, three SDKs. You end up running a stack just to make a language model remember what it did yesterday.
+Every fix today is the same tax: Qdrant + Redis + Postgres + a Python venv + a Docker compose + three SDKs — just so a language model can remember yesterday.
 
 **The stack is the bug.**
 
-## The Fix
+Synapse is one file. One binary. One process. FTS5 + vector search + hybrid RRF fusion + BLAKE3 dedup + zstd-packed snapshots + MCP endpoint — out of the box, no cloud, no vendor, no Python.
 
-```
-┌──────── one file ────────┐
-│  brain.db                │  ← SQLite + FTS5 + sqlite-vec
-│  (or brain.brainpack)    │     portable · git-committable · zstd-packed
-└──────────────────────────┘
-                │
-┌──────────────▼────────────┐
-│  synapsed daemon          │  ← 9 µs RPC · batch embed · BLAKE3 dedup
-│  tokio + unix socket      │     pure Rust · no Python · no JVM
-│  msgpack-rpc              │
-└──────────────┬────────────┘
-               │
-┌──────────────▼────────────┐
-│  CLI · Node SDK · MCP    │  ← Claude, any agent, any language
-└───────────────────────────┘
-```
+You're about to see numbers that make the rest of your stack look absurd.
 
-One binary. One file. No database to deploy. No cloud. No vendor.
+---
 
-## Why
+## 📊 Benchmarks (that actually run)
 
-Because memvid's `.mv2` format was the right idea and the wrong runtime.
+> Measured on M4 Max, 1,000 docs, release build, daemon mode.
+> Reproducible: **`./bench/bench_extended.sh`** — fork it, add your store, PR the table.
 
-MV2 nails the portability property that makes agent memory *travel*: `git commit`, `scp`, hand to teammate, done. But every MV2 call spawns a full CLI + reloads a Tantivy index. On 1000 documents, that costs **147 seconds** to insert and **12 seconds per query**.
+<div align="center">
 
-**Synapse keeps the single-file property. Drops the runtime.**
+| Store | Insert 1k docs | Lex search | File size | Synapse beats it by |
+|---|---:|---:|---:|:---:|
+| ⚡ **Synapse** | **15.9 ms** | **0.31 ms/q** | 550 KB | — |
+| SQLite + FTS5 (bare) | 13.1 ms | 0.03 ms/q | 401 KB | *in-proc floor* |
+| LanceDB + FTS | 48.8 ms | 1.85 ms/q | 274 KB | **3× / 6×** |
+| DuckDB + FTS | 311 ms | 3.98 ms/q | 1.8 MB | **19.6× / 12.8×** |
+| Chroma | 9,299 ms | 51.1 ms/q | 5.4 MB | **585× / 164×** |
+| memvid MV2 | 147,000 ms | 12,400 ms/q | 5.6 MB | **9,074× / 45,091×** |
 
-## Benchmarks
+</div>
 
-1000 docs, M4 Max, release build. Reproducible with [`./bench/run_all.sh`](bench/run_all.sh). Every number below is from a real run, not a spec sheet.
+Also measured, not elsewhere in the industry:
 
-| Op | MV2 CLI | **Synapse** | Speedup |
-|---|---:|---:|---:|
-| Insert 1k docs (no embed) | 147 s | **16 ms** | **9,074×** |
-| Lex search (FTS5 BM25) | 12,400 ms/q | **0.275 ms/q** | **45,091×** |
-| Vec search (sqlite-vec kNN) | 88 ms/q | **1.50 ms/q** | **59×** |
-| Hybrid search (RRF fusion) | — | **1.77 ms/q** | new |
-| RTT per call | 200 ms (spawn) | **9 µs** | **22,222×** |
-| Re-embed cached text | full compute | **1.4 ms / 500 docs** | **1,273×** |
-| `.brainpack` size (1k docs) | 5.6 MB | **988 KB** | **5.8× smaller** |
+| | Synapse |
+|---|---:|
+| Hybrid lex+vec RRF | **1.77 ms/q** |
+| RPC round-trip | **9 µs** |
+| Re-embed cached text (500 docs) | **1.4 ms** (1,273× repeat speedup) |
+| `.brainpack` snapshot | **10 ms / ~1 MB** |
+| Daemon cold-start | **~10 ms** |
 
-> Not cherry-picked. Not projected. Run the script.
+Not cherry-picked. Not projected. **Run the script.**
 
-## Quickstart
+---
+
+## 🚀 Quickstart (30 seconds)
 
 ```bash
-# Requires Rust 1.91+
+# Rust 1.91+
 git clone https://github.com/Supersynergy/synapse
 cd synapse
 cargo build --release
 
-# Binaries land in ./target/release/
-#   synapse       — one-shot CLI
-#   synapsed      — daemon (run once, forever)
-#   synapse-mcp   — MCP stdio bridge
-
-# Start the daemon
+# Start the daemon once. Forever.
 ./target/release/synapsed -f ~/.synapse/brain.db &
 
-# Test it
-python3 bench/client.py ping           # → Pong  (9 µs round-trip)
-python3 bench/client.py bench 1000     # → 16 ms insert, 0.28 ms/q lex
+# Use it from anywhere
+python3 bench/client.py ping              # → Pong  (9 µs)
+python3 bench/client.py bench 1000        # → 16 ms insert, 0.28 ms/q lex
 
-# Export the brain as one portable file
-synapse snap ~/.synapse/brain.brainpack
-git add brain.brainpack                # commit your AI's memory
+# Export your AI's brain as one portable file
+./target/release/synapse snap ~/.synapse/brain.brainpack
+git add brain.brainpack                   # commit it. scp it. hand it to a teammate.
 ```
 
-### With Claude Code (via MCP)
+**That's the whole product.** One binary running. One file on disk. Search it by lex, by vector, by hybrid RRF. Ship the file anywhere.
+
+---
+
+## 🤖 With Claude Code (via MCP)
 
 Add to `~/.claude/settings.json`:
 
@@ -114,164 +109,213 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-Claude now has `put`, `search`, `stats` as native tools.
+Restart Claude. It now has `put`, `search`, `stats` as native tools. **Your agent remembers across sessions.**
 
-### From Node.js
+---
+
+## 📦 From Node.js
 
 ```typescript
 import { Synapse } from "@synapse/sdk";
 
 const brain = new Synapse("/tmp/synapse.sock");
 await brain.put({ text: "rust ships here", title: "decision", embed: true });
+
 const hits = await brain.search("where does rust ship?", {
   mode: "Hybrid", embedQuery: true
 });
+// [{ id: 1, text: "rust ships here", score: 0.98 }, ...]
 ```
 
-## Compare Everything
+From Python: `pip install msgpack` and use the 40-line client in `bench/client.py`. Python SDK is v0.2.
 
-Full 10 × 10 matrix: [docs/COMPARISON.md](docs/COMPARISON.md).
+---
 
-### Versus every plausible alternative
+## 🧠 20 Ways to Use It
 
-| Store | Good at | Fails at | Synapse position |
-|---|---|---|---|
-| **memvid / MV2** | single-file portability | everything else (bench) | **45,000× faster, same portability** |
-| **Qdrant** | 1B-vector ANN, cluster ops | one-file, no-ops, MCP | **Right tool <10M vectors; one binary** |
-| **Pinecone** | managed | self-host, portability, cost | **Free, self-host, zero lock-in** |
-| **Weaviate** | hybrid search + modules | one-file, single-binary | **Hybrid RRF built-in, no server** |
-| **pgvector** | Postgres shops | portability, MCP-native | **No Postgres required** |
-| **Chroma** | Python ergonomics | single-file, Rust-core speed | **10-100× faster, zero Python** |
-| **LanceDB** | columnar vec | FTS + hybrid + MCP | **FTS5 + vec in one schema** |
-| **DuckDB + VSS** | OLAP + vectors (great!) | hot-path agent memory, MCP | **Complement, not compete — see below** |
-| **Meilisearch** | e-commerce FTS typo-tolerant | vector kNN, MCP | **Hybrid + vec out of box** |
-| **Redis + RedisSearch** | cache + vec + pub/sub | portability, git-committable | **One file vs cluster** |
+> The jobs agents actually need a memory for. [Full templates in `docs/USECASES.md`](docs/USECASES.md).
 
-### DuckDB: complement, don't compete
+- **1. Per-project Claude Code memory** — commit `.claude/brain.brainpack`, teammates clone your AI's context
+- **2. Offline docs crawl → searchable file** — one `maw` run, one `.brainpack`, zero internet
+- **3. CRM contact + interaction memory** — per-tenant brain, hybrid BM25+vec search over all past emails
+- **4. LLM session history** — load at session-start, flush at stop, zero session re-explaining
+- **5. RAG over <10M chunks** — without running a vector DB cluster
+- **6. Research report archive** — search prior `super-research` runs before spawning a new one
+- **7. Compliance packs** (DSGVO, BFSG) — one file, all projects, Claude cites actual clauses
+- **8. Lead database hybrid search** — BM25 + vec + RRF on "find similar companies to X"
+- **9. Screenshot memory** — OCR → Synapse → find past visual errors by query
+- **10. Domain data packs as products** — sell `.brainpack` subscriptions (`99 €/pack/yr refresh`)
+- **11. Agent tool-output memory** — cache expensive tool runs, skip if identical invocation happened
+- **12. Error / log deduplication** — BLAKE3 collapses dupes, FTS5 finds "similar to this crash"
+- **13. Cold-email per-prospect brain** — outreach-engine with personal context memory
+- **14. Knowledge base for sales / onboarding** — drop one file, new hire cheats via `synapse search`
+- **15. Design-system memory** — cross-theme search: "find dashboards with dark mode + radix"
+- **16. Code search / semantic grep** — semantically-near functions beyond `grep`
+- **17. Scraped product catalog memory** — dedup across sources, "alternatives to product X"
+- **18. Model-evaluation trace store** — A/B regression detection across Claude / GPT / local
+- **19. MCP memory endpoint for any agent** — bundled `synapse-mcp` binary in the release
+- **20. Offline wiki / reference bundles** — ship MDN / Rust std / Postgres manual as one file
 
-DuckDB wins OLAP. Synapse wins agent memory. They coexist:
+**Pick one. Ship it tonight.**
 
-```bash
-# Analytics over a Synapse brain — zero copy
-duckdb -c "ATTACH 'brain.db' AS s (TYPE SQLITE); SELECT COUNT(*), AVG(length(text)) FROM s.docs;"
-```
+---
 
-Same file, two engines. Synapse for hot-path writes + search; DuckDB for cold analytics. No ETL. No duplication.
-
-## The 20 Use-Cases
-
-Full list with integration templates: [docs/USECASES.md](docs/USECASES.md).
-
-1. **Per-project Claude Code memory** — commit `.claude/brain.brainpack`
-2. **Offline docs crawl → searchable file** — one `maw` run, one `.brainpack`
-3. **CRM contact + interaction memory**
-4. **LLM session history** — load at session-start, flush at stop
-5. **RAG over <10M chunks** — without a vector-DB cluster
-6. **Research report archive** — search all prior research first
-7. **Compliance packs** (DSGVO, BFSG) — one file, all projects
-8. **Lead DB hybrid search** — BM25 + vec + RRF
-9. **Screenshot memory** — OCR → Synapse → search past visual errors
-10. **Domain data packs as products** — sell `.brainpack` subscriptions
-11. **Agent tool-output memory** — cache expensive tool runs
-12. **Error / log deduplication** — BLAKE3 collapses dupes
-13. **Cold-email per-prospect brain** — outreach-engine memory
-14. **Knowledge base for sales / onboarding**
-15. **Design-system memory** — cross-theme search
-16. **Code search / semantic grep**
-17. **Scraped product catalog memory**
-18. **Model-evaluation trace store**
-19. **MCP memory endpoint for any agent**
-20. **Offline wiki / reference bundles**
-
-## Architecture
+## 🧬 Architecture
 
 ```
-synapse-core   (crate, lib)         SQLite + FTS5 + sqlite-vec + BLAKE3 dedup + .brainpack
-synapsed       (crate, binary)      tokio daemon · length-prefixed msgpack over AF_UNIX
-synapse-cli    (crate, binary)      one-shot CLI for scripts
-synapse-mcp    (crate, binary)      MCP stdio JSON-RPC → msgpack-rpc bridge
-@synapse/sdk   (sdk/node, npm)      4 KB TypeScript client
+┌──────── one file ────────┐
+│  brain.db                │  ← SQLite + FTS5 + sqlite-vec
+│  brain.brainpack         │     portable · git-committable · zstd-packed
+└──────────┬───────────────┘
+           │
+┌──────────▼───────────────┐
+│  synapsed daemon         │  ← 9 µs RPC · batch embed · BLAKE3 dedup
+│  tokio + AF_UNIX         │     pure Rust. no Python. no JVM.
+│  msgpack-rpc             │
+└──────────┬───────────────┘
+           │
+┌──────────▼───────────────┐
+│  CLI · Node · MCP · Py   │  ← Claude. Cursor. Any agent. Any script.
+└──────────────────────────┘
 ```
 
-Storage layout in `brain.db`:
-- `docs` — id, uri, title, text, meta (JSONB), ts, BLAKE3 hash
-- `docs_fts` — FTS5 virtual table, porter-stemmed, BM25-ranked
-- `docs_vec` — sqlite-vec 384-dim HNSW (BGE-small-en-v1.5)
-- triggers keep lex + vec in sync
-- single file, crash-safe via WAL, zero sidecars in snapshots
+- `synapse-core` — lib crate (schema + FTS5 + sqlite-vec + BLAKE3 + `.brainpack`)
+- `synapsed` — bin crate (tokio daemon)
+- `synapse-cli` — bin crate (one-shot CLI)
+- `synapse-mcp` — bin crate (MCP stdio bridge)
+- `@synapse/sdk` — 4 KB TypeScript client
 
-## Security
+Pure Rust. No Python runtime. No JVM. **One binary.**
 
-Full threat model: [docs/SECURITY.md](docs/SECURITY.md).
+---
 
-- Default: unix socket `0600`, single-user, **no network listener**
-- All SQL parameterized — **zero injection surface**
-- `Snap { out }` constrained to `--snap-dir` — **no write-anywhere primitive**
-- `Put.text` capped at `--max-put-bytes` (default 16 MiB)
-- `.brainpack` carries BLAKE3 checksum — integrity verified on import
-- No outbound traffic after first model download
+## ⚖️ How Synapse compares to every plausible alternative
 
-Report issues: **security@supersynergy.de**
+Full 23-DB matrix: [`docs/COMPARISON_EXTENDED.md`](docs/COMPARISON_EXTENDED.md).
 
-## Roadmap
+| Category | Tool to use | Synapse verdict |
+|---|---|---|
+| **Agent memory** | **Synapse** ⭐ | **the target. nothing close.** |
+| Portable single-file KB | Synapse or DuckDB | Synapse for write-heavy + MCP; DuckDB for analytics |
+| RAG <10M chunks | Synapse | beats Chroma 585×, DuckDB 19×, LanceDB 3× |
+| RAG at billion scale | Milvus / Qdrant / Vespa | honest: wrong tool |
+| Postgres shop already | pgvector / ParadeDB | use what's in the box |
+| OLAP on stored docs | DuckDB (`ATTACH brain.db`) | **both engines, same file** |
+| Edge replicated SQLite | libSQL / Turso | v0.3 drop-in support planned |
+| 1 B+ vec ANN, multi-region HA | Milvus / Qdrant | out of scope |
+| TB-scale OLAP | ClickHouse / DuckDB | out of scope |
+| Pub/sub + cache + vec | Redis + RedisSearch | different problem |
 
-- [x] **v0.1 — MVP** (shipped): core, daemon, CLI, Node SDK, MCP, `.brainpack`, security hardening
-- [ ] **v0.2 — Scale-out**:
-    - Quantized vectors (int8 / bit-packed) → **32× smaller, 10× faster** vec search
-    - Text column zstd compression (>1 KB docs) → further 2-5× file-size reduction
-    - `prepare_cached` statement cache → tighter hot-loop
-    - HTTP/3 bridge + HMAC auth → remote + multi-tenant
-    - SQLCipher optional → at-rest encryption
-- [ ] **v0.3 — Apple Neural Engine**:
-    - Custom ort CoreML EP path → projected **3-10× embed throughput** on M-series
-    - Parallel batch embed on ANE
-- [ ] **v0.4 — Multi-writer**:
-    - Yrs CRDT layer on metadata → merge-able brains across teammates
-    - Litestream → continuous S3 backup
+**For agent memory, nothing else is close.**
 
-**Design goal across all versions:** never break the "one file, one binary" promise.
+---
 
-## Positioning (the Cloudflare move)
+## 🛡 Security
 
-Cloudflare made their CMS "the spiritual successor to WordPress" by dropping the boring stuff (PHP, MySQL, cPanel) and keeping the part that mattered.
+Full threat model: [`docs/SECURITY.md`](docs/SECURITY.md).
+
+- **Default:** unix socket mode `0600`, single-user, zero network listener
+- **Zero SQL injection surface** — every query is parameterized
+- **Path-traversal blocked** — `Snap { out }` constrained to `--snap-dir`
+- **Size-capped `Put.text`** — `--max-put-bytes` (default 16 MiB)
+- **Integrity-checked `.brainpack`** — BLAKE3 checksum, verified on import
+- **No outbound traffic** after first model download
+
+Report: `security@supersynergy.de`
+
+---
+
+## 🗺 Roadmap
+
+Every version keeps the **one file · one binary** promise.
+
+- [x] **v0.1 — MVP** ✅ shipped: core · daemon · CLI · Node SDK · MCP · `.brainpack` · security
+- [ ] **v0.2 — Parity** 🚀 in progress
+      - In-proc SDK (beats bare SQLite latency)
+      - Quantized vectors (32× smaller · 4-8× faster kNN)
+      - Weighted hybrid + reranker (beats Weaviate quality)
+      - Trigram + typo-tolerant FTS (beats Meilisearch)
+      - Python async SDK (beats Chroma DX)
+      - `synapse analytics` (DuckDB ATTACH co-exist)
+- [ ] **v0.3 — Scale-out**
+      - Shard-pool daemon (10-100M vectors linear)
+      - Apple Neural Engine embed path (3-10× throughput)
+      - libSQL / Turso edge replication
+      - HTTP bridge + HMAC auth
+      - litestream continuous S3 backup
+      - SQLCipher opt-in at-rest encryption
+- [ ] **v0.4 — Ecosystem**
+      - CRDT metadata layer (multi-writer merges)
+      - Pub/sub RPC
+      - OTLP metrics exporter
+      - Time-partitioned tables
+      - Synapse Cloud (optional hosted)
+
+[⭐ Star to track shipping](https://github.com/Supersynergy/synapse).
+
+---
+
+## 💬 Positioning (the Cloudflare move)
+
+Cloudflare positioned their CMS as "the spiritual successor to WordPress." They dropped the legacy boilerplate (PHP, MySQL, cPanel) and kept what mattered (the authoring model).
 
 **Synapse is the spiritual successor to the vector-DB stack.**
 
-- **Keep:** hybrid search, metadata filtering, fast kNN, one-file portability
-- **Drop:** the server, the Docker compose, the Python runtime, the vendor lock-in
+- **Keep:** hybrid search · metadata filters · fast kNN · one-file portability
+- **Drop:** the server · the Docker compose · the Python runtime · the vendor lock-in
 
-Not subtle. Intended.
+The world doesn't need another vector-DB vendor. It needs one less.
 
-## Philosophy
+---
+
+## ✨ Philosophy
 
 > An agent's memory should be one file.
 
-Not a schema migration. Not a cluster. Not a Python venv. Not a SaaS contract. **One file.** Portable as text. Fast as SQLite. Searchable by lex + vector + hybrid fusion. Out of the box. No server. No stack.
+Not a schema migration. Not a cluster. Not a Python venv. Not a SaaS contract. **One file.**
 
-If that lands: [star the repo](https://github.com/Supersynergy/synapse). If it breaks: [open an issue](https://github.com/Supersynergy/synapse/issues) — I respond.
+Portable as text. Fast as SQLite. Searchable by lex + vector + hybrid fusion. Out of the box. No server. No stack.
 
-## Author
+If that lands for you: **[⭐ star the repo](https://github.com/Supersynergy/synapse).** If it breaks: **[open an issue](https://github.com/Supersynergy/synapse/issues).** I respond.
 
-**Maxim Supersynergy** — creator and maintainer of Synapse. Based in DACH. [@Supersynergy](https://github.com/Supersynergy) · true@supersynergy.de
+---
 
-## License
+## 🎖 Join the early adopters
 
-MIT. Use it anywhere, including commercially. Keep the copyright. That's it.
+- ⭐ Star the repo — signal belief
+- 👀 Watch releases — v0.2 is cooking
+- 🐛 Open an issue — biggest lever for what ships next
+- 🧵 Share the thread — **"Your AI doesn't need a stack. It needs one file."**
+- 📦 Ship a `.brainpack` pack — pick a docs site, crawl, upload, link in discussions
 
-## Credits
+First 100 star-ers get name-credit in `CONTRIBUTORS.md`. First PR-merger gets the "v0.1 Patron" badge on every release page forward.
 
-- [memvid](https://github.com/memvid) — for proving the single-file-memory idea is worth doing right
-- [SQLite](https://sqlite.org) — the eighth wonder
-- [sqlite-vec](https://github.com/asg017/sqlite-vec) — the tenth
-- [fastembed-rs](https://github.com/Anush008/fastembed-rs) — ONNX embeddings in Rust
-- [rusqlite](https://github.com/rusqlite/rusqlite), [tokio](https://tokio.rs), [redb](https://github.com/cberner/redb), [zstd](https://facebook.github.io/zstd/), [BLAKE3](https://github.com/BLAKE3-team/BLAKE3)
+---
+
+## 📜 License
+
+MIT. Use it anywhere — commercial, personal, enterprise. Keep the copyright notice. That's it.
+
+## 🙏 Credits
+
+- [memvid](https://github.com/memvid) — proved the single-file-memory idea was worth doing right
+- [SQLite](https://sqlite.org) · [sqlite-vec](https://github.com/asg017/sqlite-vec) · [fastembed-rs](https://github.com/Anush008/fastembed-rs)
+- [rusqlite](https://github.com/rusqlite/rusqlite) · [tokio](https://tokio.rs) · [redb](https://github.com/cberner/redb) · [zstd](https://facebook.github.io/zstd/) · [BLAKE3](https://github.com/BLAKE3-team/BLAKE3)
+
+## 👤 Author
+
+**Maxim Supersynergy** — creator and maintainer. [@Supersynergy](https://github.com/Supersynergy) · true@supersynergy.de
 
 ---
 
 <div align="center">
 
-**If Synapse saves your AI from amnesia, star the repo and tag the author.**
+### **Your AI agent shouldn't run on a cluster to remember yesterday.**
 
-Built in Rust. Shipped in Germany. Open forever.
+**One file. One binary. One `.brainpack` you can `git commit`.**
+
+**[⭐ Star the repo →](https://github.com/Supersynergy/synapse)**
+
+Built in Rust. Shipped from Germany. Open forever.
 
 </div>
