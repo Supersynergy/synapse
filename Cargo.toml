@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = ["crates/synapse-core", "crates/synapse-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Maxim Supersynergy <true@supersynergy.de>"]
+license = "MIT"
+repository = "https://github.com/Supersynergy/synapse"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rmp-serde = "1"
+rusqlite = { version = "0.33", features = ["bundled", "blob", "backup"] }
+sqlite-vec = "0.1"
+zstd = "0.13"
+blake3 = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+fastembed = "4"
