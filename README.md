@@ -252,17 +252,7 @@ If that lands: [star the repo](https://github.com/Supersynergy/synapse). If it b
 
 ## Author
 
-**Maxim Supersynergy** — founder of Supersynergy. Creator of:
-- **Synapse** — this project; the AI memory standard
-- **SuperKnow** — self-optimizing memory for Claude Code
-- **SupersynergyCRM** — open-source revenue stack
-- **ZeroClaw** / **ZeroClawUltimate** — Rust AI coding assistant
-- **rust-lead-engine** — 231K leads/sec enrichment
-- **super-research** — 20-engine research pipeline
-- **Omni Scraper** — 231K-lead harvester
-- 270+ custom agentic skills for Claude Code
-
-Based in DACH. Shipping at [supersynergy.de](https://supersynergy.de). Reach me: `true@supersynergy.de` · [@Supersynergy](https://github.com/Supersynergy)
+**Maxim Supersynergy** — creator and maintainer of Synapse. Based in DACH. [@Supersynergy](https://github.com/Supersynergy) · true@supersynergy.de
 
 ## License
 
