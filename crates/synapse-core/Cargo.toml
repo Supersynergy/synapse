@@ -1,0 +1,44 @@
+[package]
+name = "synapse-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rusqlite.workspace = true
+sqlite-vec.workspace = true
+tempfile = "3"
+zstd.workspace = true
+blake3.workspace = true
+tracing.workspace = true
+bitflags.workspace = true
+byteorder = "1"
+hex = "0.4"
+memmap2 = { version = "0.9", optional = true }
+automerge = { version = "0.6", optional = true }
+instant-distance = { version = "0.6", optional = true }
+ed25519-dalek = { version = "2", features = ["rand_core"], optional = true }
+rand = { version = "0.8", optional = true }
+fastembed = { workspace = true, optional = true }
+redb = { workspace = true, optional = true }
+tantivy = { version = "0.22", optional = true }
+
+[features]
+default = []
+embed = ["dep:fastembed", "dep:redb"]
+fts-tantivy = ["dep:tantivy"]
+mmap = ["dep:memmap2"]
+crdt = ["dep:automerge"]
+vec-hnsw = ["dep:instant-distance"]
+sign = ["dep:ed25519-dalek", "dep:rand"]
+# Convenience feature: all v0.3 engine extensions enabled at once.
+full = ["fts-tantivy", "mmap", "crdt", "vec-hnsw", "sign"]
+# kept for back-compat with older consumer CI that passed --features synx-v2
+synx-v2 = []
+
+[dev-dependencies]
+tempfile = "3"
