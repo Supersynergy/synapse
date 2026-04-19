@@ -189,22 +189,96 @@ Pure Rust. No Python runtime. No JVM. **One binary.**
 
 ---
 
-## ⚖️ How Synapse compares to every plausible alternative
+## ⚖️ Comparisons — The Tables
 
-Full 23-DB matrix: [`docs/COMPARISON_EXTENDED.md`](docs/COMPARISON_EXTENDED.md).
+### 1️⃣  Head-to-head benchmarks (measured, 1k docs, M4 Max)
 
-| Category | Tool to use | Synapse verdict |
+| Store | Insert 1k | docs/s | Lex / query | File size | Synapse wins by |
+|---|---:|---:|---:|---:|:---:|
+| ⚡ **Synapse** | **15.9 ms** | **62,871** | **0.31 ms** | 550 KB | — |
+| SQLite + FTS5 bare | 13.1 ms | 76,309 | 0.03 ms | 401 KB | *in-proc floor* |
+| LanceDB + FTS | 48.8 ms | 20,502 | 1.85 ms | 274 KB | **3× / 6×** |
+| DuckDB + FTS | 311 ms | 3,212 | 3.98 ms | 12 KB (no fill) | **19.6× / 12.8×** |
+| Chroma | 9,299 ms | 108 | 51.1 ms | 5.4 MB | **585× / 164×** |
+| memvid MV2 | 147,000 ms | 6.8 | 12,400 ms | 5.6 MB | **9,074× / 45,091×** |
+
+### 2️⃣  23-DB × 10-Use-Case matrix
+
+Legend: ⭐ best · ✅ works · ⚠️ workable · ❌ wrong tool
+
+| # | Use-case | 🔥 **Synapse** | MV2 | SQLite+vec | DuckDB+VSS | Qdrant | Weaviate | Milvus | Vespa | Elastic | LanceDB | Chroma | pgvector | Meilisearch | Typesense | Redis+Search | Mongo Atlas | ClickHouse | RocksDB | TiDB Vec | FAISS | Solr | libSQL | ParadeDB |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| 1 | Agent memory (per-project) | ⭐ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ⚠️ | ❌ | ✅ | ❌ |
+| 2 | RAG (<10M chunks) | ⭐ | ⚠️ | ✅ | ✅ | ⭐ | ⭐ | ⭐ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
+| 3 | RAG (>100M, multi-tenant) | ⚠️ | ❌ | ⚠️ | ✅ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ✅ | ❌ | ⭐ | ⚠️ | ⚠️ | ✅ | ✅ | ⭐ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⭐ |
+| 4 | FT search over library | ✅ | ❌ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⭐ | ⭐ | ✅ | ⚠️ | ⚠️ | ⭐ | ⭐ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ | ⭐ | ✅ | ✅ |
+| 5 | Portable KB (git-committable) | ⭐ | ✅ | ✅ | ⭐ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ✅ | ❌ | ⭐ | ❌ |
+| 6 | Write-heavy telemetry | ⚠️ | ❌ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⭐ | ✅ | ❌ | ⭐ | ❌ | ⚠️ | ⭐ | ✅ | ⭐ | ⭐ | ⭐ | ❌ | ❌ | ✅ | ✅ |
+| 7 | Offline crawl → search | ⭐ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ⚠️ | ⚠️ | ❌ | ⚠️ | ❌ | ✅ | ⚠️ |
+| 8 | Hybrid BM25+vec+RRF | ⭐ | ⚠️ | ⚠️ | ⚠️ | ✅ | ⭐ | ✅ | ⭐ | ⭐ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ✅ | ❌ | ⚠️ | ⚠️ | ⭐ |
+| 9 | LLM chat-history | ⭐ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⭐ | ✅ | ⚠️ | ✅ | ✅ | ⚠️ | ⚠️ | ⭐ | ✅ |
+| 10 | SQL analytics over docs | ✅ | ❌ | ✅ | ⭐ | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ | ❌ | ⭐ | ❌ | ❌ | ⚠️ | ✅ | ⭐ | ❌ | ✅ | ❌ | ⚠️ | ✅ | ⭐ |
+
+### 3️⃣  Portability check
+
+| Store | Single file? | Git-committable? | Encrypted at rest? | Zero-ops deploy? |
+|---|:-:|:-:|:-:|:-:|
+| ⚡ **Synapse** | ✅ (`.brainpack`) | ✅ | opt-in (SQLCipher v0.3) | ✅ |
+| memvid MV2 | ✅ | ✅ | ❌ | ✅ |
+| SQLite + vec | ✅ | ✅ | ✅ (SQLCipher) | ✅ |
+| DuckDB | ✅ | ✅ | ❌ | ✅ |
+| libSQL / Turso | ✅ | ✅ | ✅ | ✅ |
+| LanceDB | directory | awkward | ❌ | ✅ |
+| Chroma | directory | awkward | ❌ | ✅ |
+| Qdrant / Weaviate / Milvus / Vespa / Elastic / pgvector / Mongo / Redis | ❌ server | ❌ | varies | ❌ docker/k8s |
+
+### 4️⃣  Hybrid-search capability
+
+| Store | Hybrid built-in? | Fusion algo | Native RRF? | MCP endpoint? |
+|---|:-:|:-:|:-:|:-:|
+| ⚡ **Synapse** | ✅ | **RRF** | ✅ | ✅ bundled binary |
+| Weaviate | ✅ | RRF / relative | ✅ | community |
+| Elasticsearch | ✅ | RRF | ✅ | community |
+| Qdrant | ✅ | DBSF / RRF | ✅ | community |
+| Vespa | ✅ | custom profiles | via config | ❌ |
+| ParadeDB | ✅ | RRF | ✅ | ❌ |
+| Redis Search | ✅ | weighted | partial | ❌ |
+| DuckDB | ❌ | manual SQL | ❌ | ❌ |
+| Chroma | ⚠️ | distance only | ❌ | ❌ |
+| memvid MV2 | ⚠️ | sequential | ❌ | ❌ |
+
+**Synapse is the first memory store to ship an MCP bridge as a core binary.**
+
+### 5️⃣  Real-world cost (1 GB agent memory · 1 month)
+
+| Store | Self-host | Managed (closest equivalent) |
 |---|---|---|
-| **Agent memory** | **Synapse** ⭐ | **the target. nothing close.** |
-| Portable single-file KB | Synapse or DuckDB | Synapse for write-heavy + MCP; DuckDB for analytics |
-| RAG <10M chunks | Synapse | beats Chroma 585×, DuckDB 19×, LanceDB 3× |
-| RAG at billion scale | Milvus / Qdrant / Vespa | honest: wrong tool |
-| Postgres shop already | pgvector / ParadeDB | use what's in the box |
-| OLAP on stored docs | DuckDB (`ATTACH brain.db`) | **both engines, same file** |
-| Edge replicated SQLite | libSQL / Turso | v0.3 drop-in support planned |
-| 1 B+ vec ANN, multi-region HA | Milvus / Qdrant | out of scope |
-| TB-scale OLAP | ClickHouse / DuckDB | out of scope |
-| Pub/sub + cache + vec | Redis + RedisSearch | different problem |
+| ⚡ **Synapse** | **0 €** (one file on disk) | 0 € |
+| memvid MV2 | 0 € | 0 € |
+| SQLite / DuckDB | 0 € | Turso 0-10 € |
+| Qdrant | 0 € (Docker, 2 GB RAM min) | Cloud ~40 €/mo |
+| Weaviate | 0 € (2 GB RAM min) | Cloud from ~25 €/mo |
+| Pinecone | N/A | from **~70 €/mo** |
+| Elasticsearch | 0 € (hardware) | Elastic Cloud from **~95 €/mo** |
+| Mongo Atlas Vector | N/A | from ~55 €/mo |
+| Redis Enterprise | 0 € (OSS Redis) | from ~15 €/mo |
+
+**For per-project agent memory, nothing OSS beats "a file on disk."**
+
+### 6️⃣  Quick decision tree
+
+```
+Need >1B vectors, multi-region HA?           → Milvus / Qdrant / Vespa
+Need TB OLAP on warehouse data?              → DuckDB / ClickHouse (ATTACH Synapse for combo)
+Already running Postgres?                    → pgvector / ParadeDB
+Need e-commerce typo-tolerant search?        → Meilisearch / Typesense
+Need pub/sub + cache + vec?                  → Redis + RedisSearch
+Building an AI agent that needs memory?      → Synapse ⚡
+Anything else fits "single file, fast search"? → Synapse
+```
+
+Full 23-DB comparison + pricing + benchmarks: [`docs/COMPARISON_EXTENDED.md`](docs/COMPARISON_EXTENDED.md).
+Strategy for beating each competitor in their home category: [`docs/STRATEGY.md`](docs/STRATEGY.md).
 
 **For agent memory, nothing else is close.**
 
