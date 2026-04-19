@@ -26,6 +26,12 @@ struct Cli {
     /// Persistent embedding cache path (redb). Default: alongside db as .emb-cache.
     #[arg(long)]
     emb_cache: Option<PathBuf>,
+    /// Restrict `Snap { out }` to this directory. Default: db parent dir.
+    #[arg(long)]
+    snap_dir: Option<PathBuf>,
+    /// Max bytes accepted per `Put.text`. Default: 16 MiB.
+    #[arg(long, default_value_t = 16 * 1024 * 1024)]
+    max_put_bytes: usize,
 }
 
 struct State {
@@ -33,6 +39,8 @@ struct State {
     embedder: Mutex<Option<Embedder>>,
     db_path: PathBuf,
     cache_path: PathBuf,
+    snap_dir: PathBuf,
+    max_put_bytes: usize,
 }
 
 impl State {
@@ -68,11 +76,17 @@ async fn main() -> Result<()> {
         info!("warming embedder…");
         Some(Embedder::new_with_cache(Some(&cache_path)).context("embedder init")?)
     };
+    let snap_dir = cli.snap_dir.clone().unwrap_or_else(|| {
+        cli.file.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."))
+    });
+    std::fs::create_dir_all(&snap_dir).ok();
     let state = Arc::new(State {
         store: Mutex::new(store),
         embedder: Mutex::new(embedder),
         db_path: cli.file.clone(),
         cache_path,
+        snap_dir,
+        max_put_bytes: cli.max_put_bytes,
     });
 
     let _ = std::fs::remove_file(&cli.sock);
@@ -131,9 +145,15 @@ async fn dispatch(state: &State, req: Request) -> Response {
             Ok(s) => Response::Stats { docs: s.docs, vecs: s.vecs },
             Err(e) => Response::Err(e.to_string()),
         },
-        Request::Snap { out, level } => match snap::export(&state.db_path, &out, level) {
-            Ok(()) => Response::Ok,
-            Err(e) => Response::Err(e.to_string()),
+        Request::Snap { out, level } => {
+            let resolved = match sanitize_snap_path(&state.snap_dir, &out) {
+                Ok(p) => p,
+                Err(e) => return Response::Err(e.to_string()),
+            };
+            match snap::export(&state.db_path, &resolved, level) {
+                Ok(()) => Response::Ok,
+                Err(e) => Response::Err(e.to_string()),
+            }
         },
         Request::Shutdown => {
             info!("shutdown requested");
@@ -142,7 +162,24 @@ async fn dispatch(state: &State, req: Request) -> Response {
     }
 }
 
+fn sanitize_snap_path(base: &std::path::Path, out: &str) -> Result<PathBuf> {
+    let p = PathBuf::from(out);
+    let absolute = if p.is_absolute() { p } else { base.join(p) };
+    // Canonicalize what we can; canonicalize won't work if file doesn't exist yet, so canonicalize parent.
+    let parent = absolute.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
+    let canon_parent = parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf());
+    let canon_base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
+    if !canon_parent.starts_with(&canon_base) {
+        anyhow::bail!("snap path outside --snap-dir ({})", canon_base.display());
+    }
+    let fname = absolute.file_name().ok_or_else(|| anyhow::anyhow!("no filename"))?;
+    Ok(canon_parent.join(fname))
+}
+
 async fn put_one(state: &State, p: PutReq) -> Result<i64> {
+    if p.text.len() > state.max_put_bytes {
+        anyhow::bail!("text too large: {} > {}", p.text.len(), state.max_put_bytes);
+    }
     let embedding = if p.embed {
         state.ensure_embedder().await?;
         let mut g = state.embedder.lock().await;
@@ -156,6 +193,11 @@ async fn put_one(state: &State, p: PutReq) -> Result<i64> {
 }
 
 async fn put_batch(state: &State, batch: Vec<PutReq>) -> Result<Vec<i64>> {
+    for r in &batch {
+        if r.text.len() > state.max_put_bytes {
+            anyhow::bail!("text too large: {} > {}", r.text.len(), state.max_put_bytes);
+        }
+    }
     let any_embed = batch.iter().any(|r| r.embed);
     let embeddings = if any_embed {
         state.ensure_embedder().await?;
