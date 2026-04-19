@@ -16,10 +16,11 @@ zstd.workspace = true
 blake3.workspace = true
 tracing.workspace = true
 fastembed = { workspace = true, optional = true }
+redb = { workspace = true, optional = true }
 
 [features]
 default = []
-embed = ["dep:fastembed"]
+embed = ["dep:fastembed", "dep:redb"]
 
 [dev-dependencies]
 tempfile = "3"

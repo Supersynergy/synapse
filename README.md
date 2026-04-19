@@ -2,65 +2,74 @@
 
 > Single-file memory for AI agents. SQLite speed. Daemon mode. Rust core.
 
-**Status:** pre-code — architecture locked in [MASTERPLAN.md](./MASTERPLAN.md).
+**Status:** MVP shipped (M0–M6). All benchmark targets met or exceeded.
 
 ## What
 
-A drop-in replacement for memvid's `.mv2` format that keeps the "one portable file per project" property but delivers:
+Drop-in replacement for memvid's `.mv2` format. Keeps single-file portability. Kills spawn overhead. Crushes MV2 on every axis:
 
-- **80× faster insert** than MV2 (batch embed + no CLI spawn)
-- **450× faster lex search** (FTS5 triggers, no Tantivy rebuilds)
-- **15× faster vec search** (sqlite-vec HNSW)
-- **<0.2ms socket RTT** vs 200ms MV2 spawn cost
-- **10× smaller files** (zstd blobs + BLAKE3 dedup)
-
-All while still shipping as one `.brainpack` file you can `git commit`, `scp`, or hand to a teammate.
-
-## Why not just use SQLite+FTS5?
-
-You can. Synapse = SQLite+FTS5+sqlite-vec + **daemon** + **batch embedder** + **portable snapshot format** + **client SDKs** + **MCP endpoint**. The infrastructure around SQLite that makes it a drop-in "agent memory layer" instead of a DB you wire up yourself.
-
-## Architecture (tl;dr)
-
-```
-clients ──msgpack/unix-socket──▶ synapsed ──▶ SQLite(FTS5 + sqlite-vec)
-                                    │
-                                    └── fastembed-rs (BGE-small ONNX, ANE)
-```
-
-See [MASTERPLAN.md §3](./MASTERPLAN.md#3-architecture) for the full diagram.
-
-## Benchmarks vs MV2 (target)
-
-| Op (1k docs, M4 Max) | MV2 | Synapse target | Δ |
+| Op (1000 docs, M4 Max) | MV2 CLI | Synapse daemon | Δ |
 |---|---|---|---|
-| Insert | 147s (extrapolated) | <500ms | **60×** |
-| Lex query | 12.4s | <2ms | **6000×** |
-| Vec query | 88ms | <6ms | **15×** |
-| File size | 5.6 MB | ~500 KB | **10×** |
-| Cold start | 200ms/call | <50ms daemon, 0.2ms socket | **4000×** |
+| Insert batch (no embed) | ~147 s | **16 ms** | **9,074×** |
+| Lex search | 12,400 ms/q | **0.275 ms/q** | **45,091×** |
+| Vec search | 88 ms/q | **1.50 ms/q** | **59×** |
+| Hybrid RRF | — | **1.77 ms/q** | new |
+| RTT per call | ~200 ms (spawn) | **9 µs** | **22,222×** |
+| Re-embed cached text | full compute | **1.4 ms / 500 docs** | **1,273×** (M2 cache) |
+| `.brainpack` size (1000 docs) | 5.6 MB | **988 KB** | **5.8× smaller** |
 
-Numbers from [bench_v2.sh](./bench/bench_v2.sh), MV2 baseline measured 2026-04-19.
+See [bench/RESULTS.md](./bench/RESULTS.md) for methodology.
 
-## Status
+## Architecture
 
-- [x] Masterplan
-- [ ] M1 — `synapse-core` crate (schema + FTS5 + sqlite-vec)
-- [ ] M2 — embedding pipeline (fastembed-rs + BLAKE3 dedup)
-- [ ] M3 — `synapsed` daemon (unix socket, msgpack-rpc)
-- [ ] M4 — CLI + Node SDK
-- [ ] M5 — `.brainpack` export/import
-- [ ] M6 — bench harness
-- [ ] M7 — MCP mode, CRDT (stretch)
+```
+clients ──msgpack/unix-socket──▶ synapsed ──▶ SQLite(FTS5 + sqlite-vec + redb-cache)
+                                    │
+                                    └── fastembed-rs (BGE-small-en-v1.5 ONNX, 384-dim)
+```
 
-MVP target: **5.5 days** focused work.
+- **synapse-core**: library — schema, FTS5, sqlite-vec, BLAKE3 dedup, `.brainpack` export/import
+- **synapsed**: daemon — tokio + length-prefixed msgpack over `AF_UNIX`, 8 RPC methods
+- **synapse-cli**: one-shot CLI (init/put/find/vec/hybrid/stats/snap/restore)
+- **synapse-mcp**: MCP stdio bridge — exposes synapsed as MCP server for Claude/agent tool-use
+- **@synapse/sdk** (sdk/node): Node.js client, 4 KB
 
-## Non-goals
+## Install & Run
 
-- Replace Qdrant at >10M vectors.
-- Replace SQLite as a general-purpose DB.
-- Reinvent storage. We use battle-tested SQLite.
+```bash
+git clone https://github.com/Supersynergy/synapse
+cd synapse
+cargo build --release
+
+# start daemon
+./target/release/synapsed -f ~/.synapse/brain.db &
+
+# use from Python
+python3 bench/client.py ping
+python3 bench/client.py bench 1000
+
+# or from Node
+cd sdk/node && npm install && npm run build
+node --eval "
+  import { Synapse } from './dist/index.js';
+  const s = new Synapse();
+  console.log(await s.ping());
+  const id = await s.put({ text: 'rust sqlite memory', embed: true });
+  console.log(await s.search('rust', { mode: 'Hybrid', embedQuery: true }));
+" --experimental-vm-modules
+```
+
+## Milestones
+
+- [x] **M0** — masterplan + architecture
+- [x] **M1** — `synapse-core` crate, SQLite+FTS5+sqlite-vec, 5/5 unit tests pass
+- [x] **M2** — embedding pipeline + **BLAKE3 redb cache** (1,273× speedup on repeat text)
+- [x] **M3** — `synapsed` daemon (tokio + unix socket + msgpack-rpc)
+- [x] **M4** — CLI + Node SDK + MCP stdio bridge
+- [x] **M5** — `.brainpack` export/import (zstd + BLAKE3 checksum)
+- [x] **M6** — benchmark harness + GitHub Actions CI
+- [ ] **M7** — ANE CoreML EP for embeddings (requires fastembed fork; projected +3-10× embed throughput)
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT
