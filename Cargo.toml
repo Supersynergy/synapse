@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/synapse-core", "crates/synapse-cli"]
+members = ["crates/synapse-core", "crates/synapse-cli", "crates/synapsed"]
 
 [workspace.package]
 version = "0.1.0"

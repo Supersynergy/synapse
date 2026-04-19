@@ -5,3 +5,4 @@ Cargo.lock
 *.db-wal
 *.db-shm
 *.brainpack
+.fastembed_cache/
