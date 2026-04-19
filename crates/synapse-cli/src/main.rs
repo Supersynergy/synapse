@@ -60,7 +60,7 @@ fn main() -> Result<()> {
             anyhow::ensure!(!body.is_empty(), "empty text");
             let mut store = Store::open(&cli.file)?;
             let embedding = if no_embed { None } else {
-                let e = Embedder::new().context("embedder init")?;
+                let mut e = Embedder::new_with_cache::<std::path::PathBuf>(cli.file.parent().map(|p| p.join(".emb-cache"))).context("embedder init")?;
                 Some(e.embed_one(&body)?)
             };
             let id = store.put(&PutRequest { title, uri, text: body, embedding, ..Default::default() })?;
@@ -73,14 +73,14 @@ fn main() -> Result<()> {
         }
         Cmd::Vec { query, limit } => {
             let store = Store::open(&cli.file)?;
-            let e = Embedder::new()?;
+            let mut e = Embedder::new_with_cache::<std::path::PathBuf>(cli.file.parent().map(|p| p.join(".emb-cache")))?;
             let q = e.embed_one(&query)?;
             let hits = store.search("", SearchMode::Vec, Some(&q), limit)?;
             print_hits(&hits);
         }
         Cmd::Hybrid { query, limit } => {
             let store = Store::open(&cli.file)?;
-            let e = Embedder::new()?;
+            let mut e = Embedder::new_with_cache::<std::path::PathBuf>(cli.file.parent().map(|p| p.join(".emb-cache")))?;
             let q = e.embed_one(&query)?;
             let hits = store.search(&query, SearchMode::Hybrid, Some(&q), limit)?;
             print_hits(&hits);

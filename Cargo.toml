@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/synapse-core", "crates/synapse-cli", "crates/synapsed"]
+members = ["crates/synapse-core", "crates/synapse-cli", "crates/synapsed", "crates/synapse-mcp"]
 
 [workspace.package]
 version = "0.1.0"
@@ -23,4 +23,5 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
-fastembed = "4"
+fastembed = "5"
+redb = "2"

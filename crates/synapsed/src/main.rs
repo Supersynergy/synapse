@@ -23,21 +23,25 @@ struct Cli {
     /// Skip loading the embedding model at startup (lazy init on first use)
     #[arg(long, default_value_t = false)]
     lazy_embed: bool,
+    /// Persistent embedding cache path (redb). Default: alongside db as .emb-cache.
+    #[arg(long)]
+    emb_cache: Option<PathBuf>,
 }
 
 struct State {
     store: Mutex<Store>,
     embedder: Mutex<Option<Embedder>>,
     db_path: PathBuf,
+    cache_path: PathBuf,
 }
 
 impl State {
     async fn ensure_embedder(&self) -> Result<()> {
         let mut g = self.embedder.lock().await;
         if g.is_none() {
-            info!("loading embedder (BGE-small-en-v1.5)…");
+            info!("loading embedder (BGE-small-en-v1.5) cache={}…", self.cache_path.display());
             let t0 = std::time::Instant::now();
-            *g = Some(Embedder::new().context("embedder init")?);
+            *g = Some(Embedder::new_with_cache(Some(&self.cache_path)).context("embedder init")?);
             info!("embedder ready in {:?}", t0.elapsed());
         }
         Ok(())
@@ -52,16 +56,23 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     if let Some(p) = cli.file.parent() { std::fs::create_dir_all(p).ok(); }
     let store = Store::open(&cli.file).context("open store")?;
+    let cache_path = cli.emb_cache.clone().unwrap_or_else(|| {
+        let mut p = cli.file.clone();
+        let name = p.file_name().map(|n| format!(".{}.emb-cache", n.to_string_lossy())).unwrap_or_else(|| ".emb-cache".into());
+        p.set_file_name(name);
+        p
+    });
     let embedder = if cli.lazy_embed {
         None
     } else {
         info!("warming embedder…");
-        Some(Embedder::new().context("embedder init")?)
+        Some(Embedder::new_with_cache(Some(&cache_path)).context("embedder init")?)
     };
     let state = Arc::new(State {
         store: Mutex::new(store),
         embedder: Mutex::new(embedder),
         db_path: cli.file.clone(),
+        cache_path,
     });
 
     let _ = std::fs::remove_file(&cli.sock);
@@ -134,8 +145,8 @@ async fn dispatch(state: &State, req: Request) -> Response {
 async fn put_one(state: &State, p: PutReq) -> Result<i64> {
     let embedding = if p.embed {
         state.ensure_embedder().await?;
-        let g = state.embedder.lock().await;
-        let e = g.as_ref().expect("embedder present");
+        let mut g = state.embedder.lock().await;
+        let e = g.as_mut().expect("embedder present");
         Some(e.embed_one(&p.text)?)
     } else { None };
     let mut req: PutRequest = p.into();
@@ -149,8 +160,8 @@ async fn put_batch(state: &State, batch: Vec<PutReq>) -> Result<Vec<i64>> {
     let embeddings = if any_embed {
         state.ensure_embedder().await?;
         let texts: Vec<String> = batch.iter().map(|r| r.text.clone()).collect();
-        let g = state.embedder.lock().await;
-        let e = g.as_ref().expect("embedder present");
+        let mut g = state.embedder.lock().await;
+        let e = g.as_mut().expect("embedder present");
         Some(e.embed_batch(&texts)?)
     } else { None };
     let reqs: Vec<PutRequest> = batch.into_iter().enumerate().map(|(i, p)| {
@@ -166,8 +177,8 @@ async fn put_batch(state: &State, batch: Vec<PutReq>) -> Result<Vec<i64>> {
 async fn search(state: &State, mode: SearchMode, q: &str, limit: usize, embed_query: bool) -> Result<Vec<synapse_core::Hit>> {
     let emb = if embed_query {
         state.ensure_embedder().await?;
-        let g = state.embedder.lock().await;
-        let e = g.as_ref().expect("embedder present");
+        let mut g = state.embedder.lock().await;
+        let e = g.as_mut().expect("embedder present");
         Some(e.embed_one(q)?)
     } else { None };
     let store = state.store.lock().await;
