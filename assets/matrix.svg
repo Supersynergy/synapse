@@ -30,282 +30,276 @@
   </g>
   <line x1="80" y1="158" x2="1240" y2="158" stroke="rgba(255,255,255,0.08)"/>
 
-  <!-- zebra rows: background stripes -->
+  <!-- Synapse hero row at the top -->
+  <rect x="60" y="172" width="1180" height="50" fill="rgba(255,87,34,0.10)"/>
+  <rect x="60" y="172" width="4" height="50" fill="#ff5722"/>
+  <g font-family="JetBrains Mono, ui-monospace, monospace" font-size="16" font-weight="700" fill="#fafafa">
+    <text x="80"   y="203">Synapse</text>
+    <text x="420"  y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="505"  y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="590"  y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="675"  y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="760"  y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="845"  y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="930"  y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="1015" y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="1100" y="203" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="1200" y="203" fill="#fafafa" text-anchor="middle" font-size="14">MIT+CC0</text>
+  </g>
+
+  <!-- divider between Synapse and competitors -->
+  <line x1="80" y1="240" x2="1240" y2="240" stroke="rgba(255,255,255,0.15)"/>
+  <text x="80" y="262" font-family="Inter, SF Pro Display, system-ui, sans-serif" font-size="11" font-weight="500" fill="#525252" letter-spacing="2">
+    INCUMBENTS
+  </text>
+
+  <!-- zebra stripes for competitor rows (20 rows, step 31, start y=280) -->
   <g fill="rgba(255,255,255,0.015)">
-    <rect x="60" y="172" width="1180" height="30"/>
-    <rect x="60" y="234" width="1180" height="30"/>
-    <rect x="60" y="296" width="1180" height="30"/>
-    <rect x="60" y="358" width="1180" height="30"/>
-    <rect x="60" y="420" width="1180" height="30"/>
-    <rect x="60" y="482" width="1180" height="30"/>
-    <rect x="60" y="544" width="1180" height="30"/>
-    <rect x="60" y="606" width="1180" height="30"/>
-    <rect x="60" y="668" width="1180" height="30"/>
-    <rect x="60" y="730" width="1180" height="30"/>
+    <rect x="60" y="270" width="1180" height="30"/>
+    <rect x="60" y="332" width="1180" height="30"/>
+    <rect x="60" y="394" width="1180" height="30"/>
+    <rect x="60" y="456" width="1180" height="30"/>
+    <rect x="60" y="518" width="1180" height="30"/>
+    <rect x="60" y="580" width="1180" height="30"/>
+    <rect x="60" y="642" width="1180" height="30"/>
+    <rect x="60" y="704" width="1180" height="30"/>
+    <rect x="60" y="766" width="1180" height="30"/>
+    <rect x="60" y="828" width="1180" height="30"/>
   </g>
 
   <g font-family="JetBrains Mono, ui-monospace, monospace" font-size="13" fill="#e5e5e5">
-    <!-- row template: tool, then values per column; dim = #525252, yes = white, partial = #737373, red = #b91c1c -->
-    <!-- y starts at 192, step 31 -->
-    <text x="80"   y="193">SQLite</text>
-    <text x="420"  y="193" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="505"  y="193" fill="#737373" text-anchor="middle">ext</text>
-    <text x="590"  y="193" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="193" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="193" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="193" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="193" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="1015" y="193" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="193" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="193" fill="#fafafa" text-anchor="middle">✓</text>
+    <!-- y starts at 290, step 31 for 20 rows -->
 
-    <text x="80"   y="224">DuckDB</text>
-    <text x="420"  y="224" fill="#737373" text-anchor="middle">ext</text>
-    <text x="505"  y="224" fill="#737373" text-anchor="middle">ext</text>
-    <text x="590"  y="224" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="224" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="224" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="224" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="224" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="1015" y="224" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="224" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="224" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="291">SQLite</text>
+    <text x="420"  y="291" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="505"  y="291" fill="#737373" text-anchor="middle">ext</text>
+    <text x="590"  y="291" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="291" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="291" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="291" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="291" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1015" y="291" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="291" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="291" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="255">SurrealDB</text>
-    <text x="420"  y="255" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="505"  y="255" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="590"  y="255" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="675"  y="255" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="255" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="255" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="255" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="255" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="255" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="255" fill="#b91c1c" text-anchor="middle">BSL</text>
+    <text x="80"   y="322">DuckDB</text>
+    <text x="420"  y="322" fill="#737373" text-anchor="middle">ext</text>
+    <text x="505"  y="322" fill="#737373" text-anchor="middle">ext</text>
+    <text x="590"  y="322" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="322" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="322" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="322" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="322" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1015" y="322" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="322" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="322" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="286">PocketBase</text>
-    <text x="420"  y="286" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="505"  y="286" fill="#737373" text-anchor="middle">ext</text>
-    <text x="590"  y="286" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="286" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="286" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="286" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="286" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="1015" y="286" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="286" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="286" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="353">SurrealDB</text>
+    <text x="420"  y="353" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="505"  y="353" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="590"  y="353" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="675"  y="353" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="353" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="353" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="353" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="353" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="353" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="353" fill="#b91c1c" text-anchor="middle">BSL</text>
 
-    <text x="80"   y="317">Qdrant</text>
-    <text x="420"  y="317" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="317" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="590"  y="317" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="317" fill="#737373" text-anchor="middle">ns</text>
-    <text x="760"  y="317" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="317" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="317" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="317" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="317" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="317" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="384">PocketBase</text>
+    <text x="420"  y="384" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="505"  y="384" fill="#737373" text-anchor="middle">ext</text>
+    <text x="590"  y="384" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="384" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="384" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="384" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="384" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1015" y="384" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="384" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="384" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="348">Meilisearch</text>
-    <text x="420"  y="348" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="505"  y="348" fill="#737373" text-anchor="middle">part</text>
-    <text x="590"  y="348" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="348" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="348" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="348" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="348" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="348" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="348" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="348" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="415">Qdrant</text>
+    <text x="420"  y="415" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="415" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="590"  y="415" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="415" fill="#737373" text-anchor="middle">ns</text>
+    <text x="760"  y="415" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="415" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="415" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="415" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="415" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="415" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="379">LanceDB</text>
-    <text x="420"  y="379" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="505"  y="379" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="590"  y="379" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="379" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="379" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="379" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="379" fill="#737373" text-anchor="middle">part</text>
-    <text x="1015" y="379" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="379" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="379" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="446">Meilisearch</text>
+    <text x="420"  y="446" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="505"  y="446" fill="#737373" text-anchor="middle">part</text>
+    <text x="590"  y="446" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="446" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="446" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="446" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="446" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="446" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="446" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="446" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="410">Chroma</text>
-    <text x="420"  y="410" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="410" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="590"  y="410" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="410" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="410" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="410" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="410" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="410" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="410" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="410" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="477">LanceDB</text>
+    <text x="420"  y="477" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="505"  y="477" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="590"  y="477" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="477" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="477" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="477" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="477" fill="#737373" text-anchor="middle">part</text>
+    <text x="1015" y="477" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="477" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="477" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="441">Weaviate</text>
-    <text x="420"  y="441" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="505"  y="441" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="590"  y="441" fill="#737373" text-anchor="middle">part</text>
-    <text x="675"  y="441" fill="#737373" text-anchor="middle">ns</text>
-    <text x="760"  y="441" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="441" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="441" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="441" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="441" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="441" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="508">Chroma</text>
+    <text x="420"  y="508" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="508" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="590"  y="508" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="508" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="508" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="508" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="508" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="508" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="508" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="508" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="472">Pinecone</text>
-    <text x="420"  y="472" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="472" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="590"  y="472" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="472" fill="#737373" text-anchor="middle">ns</text>
-    <text x="760"  y="472" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="472" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="472" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="472" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="472" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="472" fill="#b91c1c" text-anchor="middle">closed</text>
+    <text x="80"   y="539">Weaviate</text>
+    <text x="420"  y="539" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="505"  y="539" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="590"  y="539" fill="#737373" text-anchor="middle">part</text>
+    <text x="675"  y="539" fill="#737373" text-anchor="middle">ns</text>
+    <text x="760"  y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="539" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="539" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="503">memvid</text>
-    <text x="420"  y="503" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="505"  y="503" fill="#525252" text-anchor="middle">—</text>
-    <text x="590"  y="503" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="503" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="503" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="503" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="503" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="1015" y="503" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="503" fill="#525252" text-anchor="middle">—</text>
-    <text x="1200" y="503" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="570">Pinecone</text>
+    <text x="420"  y="570" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="570" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="590"  y="570" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="570" fill="#737373" text-anchor="middle">ns</text>
+    <text x="760"  y="570" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="570" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="570" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="570" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="570" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="570" fill="#b91c1c" text-anchor="middle">closed</text>
 
-    <text x="80"   y="534">mem0</text>
-    <text x="420"  y="534" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="534" fill="#737373" text-anchor="middle">ext</text>
-    <text x="590"  y="534" fill="#737373" text-anchor="middle">ext</text>
-    <text x="675"  y="534" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="760"  y="534" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="534" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="534" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="534" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="534" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="534" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="601">memvid</text>
+    <text x="420"  y="601" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="505"  y="601" fill="#525252" text-anchor="middle">—</text>
+    <text x="590"  y="601" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="601" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="601" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="601" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="601" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1015" y="601" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="601" fill="#525252" text-anchor="middle">—</text>
+    <text x="1200" y="601" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="565">Graphiti</text>
-    <text x="420"  y="565" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="565" fill="#737373" text-anchor="middle">ext</text>
-    <text x="590"  y="565" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="675"  y="565" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="760"  y="565" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="565" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="565" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="565" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="565" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="565" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="632">mem0</text>
+    <text x="420"  y="632" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="632" fill="#737373" text-anchor="middle">ext</text>
+    <text x="590"  y="632" fill="#737373" text-anchor="middle">ext</text>
+    <text x="675"  y="632" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="760"  y="632" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="632" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="632" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="632" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="632" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="632" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="596">cognee</text>
-    <text x="420"  y="596" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="596" fill="#737373" text-anchor="middle">ext</text>
-    <text x="590"  y="596" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="675"  y="596" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="760"  y="596" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="596" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="596" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="596" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="596" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="596" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="663">Graphiti</text>
+    <text x="420"  y="663" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="663" fill="#737373" text-anchor="middle">ext</text>
+    <text x="590"  y="663" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="675"  y="663" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="760"  y="663" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="663" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="663" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="663" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="663" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="663" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="627">Memori</text>
-    <text x="420"  y="627" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="627" fill="#525252" text-anchor="middle">—</text>
-    <text x="590"  y="627" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="627" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="760"  y="627" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="627" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="627" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="627" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="627" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="627" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="694">cognee</text>
+    <text x="420"  y="694" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="694" fill="#737373" text-anchor="middle">ext</text>
+    <text x="590"  y="694" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="675"  y="694" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="760"  y="694" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="694" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="694" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="694" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="694" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="694" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="658">Zep</text>
-    <text x="420"  y="658" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="658" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="590"  y="658" fill="#737373" text-anchor="middle">part</text>
-    <text x="675"  y="658" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="760"  y="658" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="658" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="658" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="658" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="658" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="658" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="725">Memori</text>
+    <text x="420"  y="725" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="725" fill="#525252" text-anchor="middle">—</text>
+    <text x="590"  y="725" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="725" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="760"  y="725" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="725" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="725" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="725" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="725" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="725" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="689">Letta</text>
-    <text x="420"  y="689" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="689" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="590"  y="689" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="689" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="760"  y="689" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="689" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="689" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="689" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="689" fill="#737373" text-anchor="middle">wrap</text>
-    <text x="1200" y="689" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="756">Zep</text>
+    <text x="420"  y="756" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="756" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="590"  y="756" fill="#737373" text-anchor="middle">part</text>
+    <text x="675"  y="756" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="760"  y="756" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="756" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="756" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="756" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="756" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="756" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="720">Automerge</text>
-    <text x="420"  y="720" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="720" fill="#525252" text-anchor="middle">—</text>
-    <text x="590"  y="720" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="720" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="720" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="845"  y="720" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="720" fill="#525252" text-anchor="middle">—</text>
-    <text x="1015" y="720" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="720" fill="#525252" text-anchor="middle">—</text>
-    <text x="1200" y="720" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="787">Letta</text>
+    <text x="420"  y="787" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="787" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="590"  y="787" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="787" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="760"  y="787" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="787" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="787" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="787" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="787" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1200" y="787" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="751">RocksDB</text>
-    <text x="420"  y="751" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="751" fill="#525252" text-anchor="middle">—</text>
-    <text x="590"  y="751" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="751" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="751" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="751" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="751" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="1015" y="751" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="751" fill="#525252" text-anchor="middle">—</text>
-    <text x="1200" y="751" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="818">Automerge</text>
+    <text x="420"  y="818" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="818" fill="#525252" text-anchor="middle">—</text>
+    <text x="590"  y="818" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="818" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="818" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="845"  y="818" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="818" fill="#525252" text-anchor="middle">—</text>
+    <text x="1015" y="818" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="818" fill="#525252" text-anchor="middle">—</text>
+    <text x="1200" y="818" fill="#fafafa" text-anchor="middle">✓</text>
 
-    <text x="80"   y="782">Parquet</text>
-    <text x="420"  y="782" fill="#525252" text-anchor="middle">—</text>
-    <text x="505"  y="782" fill="#525252" text-anchor="middle">—</text>
-    <text x="590"  y="782" fill="#525252" text-anchor="middle">—</text>
-    <text x="675"  y="782" fill="#525252" text-anchor="middle">—</text>
-    <text x="760"  y="782" fill="#525252" text-anchor="middle">—</text>
-    <text x="845"  y="782" fill="#525252" text-anchor="middle">—</text>
-    <text x="930"  y="782" fill="#fafafa" text-anchor="middle">✓</text>
-    <text x="1015" y="782" fill="#525252" text-anchor="middle">—</text>
-    <text x="1100" y="782" fill="#525252" text-anchor="middle">—</text>
-    <text x="1200" y="782" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="80"   y="849">RocksDB</text>
+    <text x="420"  y="849" fill="#525252" text-anchor="middle">—</text>
+    <text x="505"  y="849" fill="#525252" text-anchor="middle">—</text>
+    <text x="590"  y="849" fill="#525252" text-anchor="middle">—</text>
+    <text x="675"  y="849" fill="#525252" text-anchor="middle">—</text>
+    <text x="760"  y="849" fill="#525252" text-anchor="middle">—</text>
+    <text x="845"  y="849" fill="#525252" text-anchor="middle">—</text>
+    <text x="930"  y="849" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1015" y="849" fill="#525252" text-anchor="middle">—</text>
+    <text x="1100" y="849" fill="#525252" text-anchor="middle">—</text>
+    <text x="1200" y="849" fill="#fafafa" text-anchor="middle">✓</text>
   </g>
 
-  <!-- Synapse hero row -->
-  <rect x="60" y="803" width="1180" height="44" fill="rgba(255,87,34,0.08)" stroke="none"/>
-  <rect x="60" y="803" width="4" height="44" fill="#ff5722"/>
-  <g font-family="JetBrains Mono, ui-monospace, monospace" font-size="14" font-weight="700" fill="#fafafa">
-    <text x="80"   y="832">Synapse</text>
-    <text x="420"  y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="505"  y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="590"  y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="675"  y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="760"  y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="845"  y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="930"  y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="1015" y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="1100" y="832" fill="#ff5722" text-anchor="middle">✓</text>
-    <text x="1200" y="832" fill="#fafafa" text-anchor="middle">MIT+CC0</text>
-  </g>
-
-  <text x="80" y="880" font-family="Inter, SF Pro Display, system-ui, sans-serif" font-size="11" fill="#525252">
+  <text x="80" y="885" font-family="Inter, SF Pro Display, system-ui, sans-serif" font-size="11" fill="#525252">
     ext = via extension · ns = namespace filter, no scope type · part = partial · wrap = wrapper bridge · BSL/closed = not permissively OSS
   </text>
 </svg>

@@ -88,6 +88,7 @@ Full 50-usecase matrix + CatBoost-picked defaults: [`bench/RESULTS-V1.md`](bench
 
 | Tool | BM25 | Vector | KG | Scopes | CRDT | Sign | OneFile | µs-IPC | MCP | OSS |
 |------|:----:|:------:|:--:|:------:|:----:|:----:|:-------:|:------:|:---:|:---:|
+| **→ Synapse** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **MIT + CC0** |
 | SQLite | ✅ | ext | — | — | — | — | ✅ | — | wrap | ✅ |
 | DuckDB | ext | ext | — | — | — | — | ✅ | — | wrap | ✅ |
 | SurrealDB | ✅ | ✅ | ✅ | — | — | — | — | — | wrap | ❌ BSL |
@@ -108,7 +109,6 @@ Full 50-usecase matrix + CatBoost-picked defaults: [`bench/RESULTS-V1.md`](bench
 | Automerge | — | — | — | — | ✅ | — | — | — | — | ✅ |
 | RocksDB | — | — | — | — | — | — | ✅ | — | — | ✅ |
 | Parquet | — | — | — | — | — | — | ✅ | — | — | ✅ |
-| **Synapse** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **MIT+CC0** |
 
 <sup>Legend: `ext` via extension · `ns` via namespace filter, no scope type · `part` partial · `wrap` wrapper bridge · `BSL / closed` not permissively OSS.</sup>
 
