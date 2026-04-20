@@ -14,3 +14,4 @@ clap.workspace = true
 serde_json.workspace = true
 tracing-subscriber.workspace = true
 synapse-core = { path = "../synapse-core", features = ["embed"] }
+synapse-learn = { path = "../synapse-learn" }
