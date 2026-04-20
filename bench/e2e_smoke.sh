@@ -260,10 +260,36 @@ else
     fail "10-migration-dry-run" "unexpected output: ${mig_out:0:200}"
 fi
 
+# ─── 11. synapse-learn: bandit convergence + feedback + learn status ──────────
+DB_LEARN="$D/learn.db"
+"$SYN" -f "$DB_LEARN" put --no-embed --text "bandit test doc alpha" >/dev/null 2>&1
+"$SYN" -f "$DB_LEARN" put --no-embed --text "bandit test doc beta" >/dev/null 2>&1
+
+fb_out=$("$SYN" -f "$DB_LEARN" feedback "q_test" 1 --shard-id "shard0" 2>&1 || echo "")
+if echo "$fb_out" | grep -q "ok feedback"; then
+    ok "11a-feedback-record"
+else
+    fail "11a-feedback-record" "feedback cmd failed: ${fb_out:0:200}"
+fi
+
+status_out=$("$SYN" -f "$DB_LEARN" learn status 2>&1 || echo "")
+if echo "$status_out" | grep -q "bandit_shards="; then
+    ok "11b-learn-status"
+else
+    fail "11b-learn-status" "learn status failed: ${status_out:0:200}"
+fi
+
+consolidate_out=$("$SYN" -f "$DB_LEARN" learn consolidate 2>&1 || echo "")
+if echo "$consolidate_out" | grep -qE "pairs_found="; then
+    ok "11c-consolidate"
+else
+    fail "11c-consolidate" "consolidate failed: ${consolidate_out:0:200}"
+fi
+
 # ─── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════"
-echo "  Synapse E2E Smoke — v0.2.0"
+echo "  Synapse E2E Smoke — v0.3.0"
 echo "  PASS: $PASS  FAIL: $FAIL"
 echo "══════════════════════════════════"
 

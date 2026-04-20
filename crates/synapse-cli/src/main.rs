@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use synapse_core::{embed::Embedder, federate::{Addr, Federation}, shard, sign, snap, PutRequest, SearchMode, Store};
+use synapse_learn::LearnStore;
 
 #[derive(Parser)]
 #[command(name = "synapse", version, about = "Single-file memory for AI agents")]
@@ -75,6 +76,29 @@ enum Cmd {
         #[command(subcommand)]
         action: ShardCmd,
     },
+    /// Self-learning operations
+    Learn {
+        #[command(subcommand)]
+        action: LearnCmd,
+    },
+    /// Record positive feedback for a doc
+    Feedback {
+        query_id: String,
+        accepted_doc_id: i64,
+        #[arg(long, default_value = "default")] shard_id: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum LearnCmd {
+    /// Show learning stats
+    Status,
+    /// Run near-dup consolidation
+    Consolidate,
+    /// Check embedding drift
+    DriftCheck,
+    /// Update calibration from feedback log
+    Calibrate,
 }
 
 #[derive(Subcommand)]
@@ -248,6 +272,39 @@ fn main() -> Result<()> {
                 }
             }
         },
+        Cmd::Learn { action } => {
+            let learn_path = cli.file.with_extension("learn.db");
+            let lstore = LearnStore::open(&learn_path)?;
+            match action {
+                LearnCmd::Status => {
+                    let bandit_count: i64 = lstore.conn.query_row(
+                        "SELECT COUNT(*) FROM learn_bandit", [], |r| r.get(0)
+                    ).unwrap_or(0);
+                    let fb_count: i64 = lstore.conn.query_row(
+                        "SELECT COUNT(*) FROM feedback", [], |r| r.get(0)
+                    ).unwrap_or(0);
+                    println!("bandit_shards={} feedback_entries={}", bandit_count, fb_count);
+                }
+                LearnCmd::Consolidate => {
+                    let store = Store::open(&cli.file)?;
+                    let report = synapse_learn::consolidate::run_consolidate(&store.conn)?;
+                    println!("pairs_found={} merged={}", report.pairs_found, report.merged);
+                }
+                LearnCmd::DriftCheck => {
+                    println!("drift-check: requires embedded model — run with --feature embed");
+                }
+                LearnCmd::Calibrate => {
+                    let updated = synapse_learn::calibrate::update_calibration(&lstore)?;
+                    println!("calibration updated buckets={}", updated);
+                }
+            }
+        }
+        Cmd::Feedback { query_id, accepted_doc_id, shard_id } => {
+            let learn_path = cli.file.with_extension("learn.db");
+            let lstore = LearnStore::open(&learn_path)?;
+            synapse_learn::feedback::record_accept(&lstore, &query_id, accepted_doc_id, &shard_id)?;
+            println!("ok feedback recorded doc_id={} shard={}", accepted_doc_id, shard_id);
+        }
     }
     Ok(())
 }
