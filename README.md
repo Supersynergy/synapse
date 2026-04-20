@@ -120,7 +120,9 @@ No RAG framework in production has all of the above in one process. That's the g
 
 <div align="center">
 
-<img src="assets/matrix.svg" alt="Synapse vs the field — capability matrix" width="100%"/>
+<a href="assets/matrix-full.svg"><img src="assets/matrix-full.svg" alt="Synapse vs the field — 20-tool capability matrix" width="100%"/></a>
+
+<sub>Click for the full-size 1600×1200 version · ASCII-friendly markdown table below.</sub>
 
 </div>
 
