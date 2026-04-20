@@ -11,12 +11,19 @@
 **The open standard for agent memory.** Rust core. SQLite + FTS5 + sqlite-vec. MCP-native. MIT.
 
 [![CI](https://github.com/Supersynergy/synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse/actions)
-[![Release](https://img.shields.io/github/v/tag/Supersynergy/synapse?label=release&color=blueviolet)](https://github.com/Supersynergy/synapse/releases)
+[![Release](https://img.shields.io/badge/release-v0.2.0-blueviolet)](https://github.com/Supersynergy/synapse/releases/tag/v0.2.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.91+-orange.svg)]()
 [![Stars](https://img.shields.io/github/stars/Supersynergy/synapse?style=social)](https://github.com/Supersynergy/synapse/stargazers)
 
 **[⭐ Star the repo](https://github.com/Supersynergy/synapse)  ·  [🚀 Quickstart (30s)](#-quickstart-30-seconds)  ·  [📊 Benchmarks](#-benchmarks-that-actually-run)  ·  [🧠 20 Use-Cases](#-20-ways-to-use-it)  ·  [🗺 Roadmap](#-roadmap)**
+
+**v0.2.0 — Hardening Pass:**
+- Ed25519 signed snapshots + CRDT three-way merge (no data loss)
+- MCP tool server (5 tools) + SQLCipher encrypted stores
+- Global ONNX session pool (eliminates per-request model reload)
+- IVF sharding with k-means routing + Bloom-filter cache
+- TCP federation with signature verification + SuperKnow migration tool
 
 </div>
 
