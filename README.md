@@ -11,13 +11,23 @@
 **The open standard for agent memory.** Rust core. SQLite + FTS5 + sqlite-vec. MCP-native. MIT.
 
 [![CI](https://github.com/Supersynergy/synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse/actions)
-[![E2E tested](https://img.shields.io/badge/E2E-20%2F20%20PASS-brightgreen)](bench/e2e_smoke.sh)
-[![Release](https://img.shields.io/badge/release-v0.2.0-blueviolet)](https://github.com/Supersynergy/synapse/releases/tag/v0.2.0)
+[![E2E tested](https://img.shields.io/badge/E2E-23%2F23%20PASS-brightgreen)](bench/e2e_smoke.sh)
+[![Release](https://img.shields.io/badge/release-v0.3.0-blueviolet)](https://github.com/Supersynergy/synapse/releases/tag/v0.3.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.91+-orange.svg)]()
 [![Stars](https://img.shields.io/github/stars/Supersynergy/synapse?style=social)](https://github.com/Supersynergy/synapse/stargazers)
 
 **[⭐ Star the repo](https://github.com/Supersynergy/synapse)  ·  [🚀 Quickstart (30s)](#-quickstart-30-seconds)  ·  [📊 Benchmarks](#-benchmarks-that-actually-run)  ·  [🧠 20 Use-Cases](#-20-ways-to-use-it)  ·  [🗺 Roadmap](#-roadmap)**
+
+**v0.3.0 — Self-Learning:**
+- Thompson-sampling shard router (bandit) — automatically routes queries to best shards
+- Adaptive RRF-alpha tuning per query-shape via bandit
+- `synapse feedback` — record accepted docs, drives bandit rewards
+- Usage-heat reranking — boosts frequently-accessed, recent docs
+- Embedding-drift detector — cosine similarity check with WARN/ERROR thresholds
+- Near-dup consolidation — LSH + cosine>0.95 merge with nightly support
+- Confidence calibration — Platt-scaling correction table from feedback log
+- All learning state in `<brain>.learn.db` SQLite — zero new dependencies at runtime
 
 **v0.2.0 — Hardening Pass:**
 - Ed25519 signed snapshots + CRDT three-way merge (no data loss)
