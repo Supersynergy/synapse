@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use synapse_core::{embed::Embedder, snap, PutRequest, SearchMode, Store};
+use synapse_core::{embed::Embedder, sign, snap, PutRequest, SearchMode, Store};
 
 #[derive(Parser)]
 #[command(name = "synapse", version, about = "Single-file memory for AI agents")]
@@ -22,6 +22,27 @@ enum Cmd {
         #[arg(long)] uri: Option<String>,
         #[arg(long)] text: Option<String>,
         #[arg(long, default_value_t = false)] no_embed: bool,
+        /// Path to Ed25519 signing key (32-byte raw file)
+        #[arg(long)] sign: Option<PathBuf>,
+    },
+    /// Verify Ed25519 signature of a doc by id
+    Verify {
+        id: i64,
+        /// Path to verifying key (32-byte raw file)
+        #[arg(long)] vk: PathBuf,
+    },
+    /// Generate an Ed25519 keypair
+    Keygen {
+        /// Output secret key path
+        #[arg(long, default_value = "synapse.sk")] sk: PathBuf,
+        /// Output public key path
+        #[arg(long, default_value = "synapse.vk")] vk: PathBuf,
+    },
+    /// Export signed .brainpack
+    SnapSigned {
+        out: PathBuf,
+        #[arg(long, default_value_t = 3)] level: i32,
+        #[arg(long)] sk: PathBuf,
     },
     /// Lexical FTS5 search
     Find { query: String, #[arg(long, default_value_t = 10)] limit: usize },
@@ -48,7 +69,7 @@ fn main() -> Result<()> {
             Store::open(&cli.file)?;
             println!("ok init {}", cli.file.display());
         }
-        Cmd::Put { title, uri, text, no_embed } => {
+        Cmd::Put { title, uri, text, no_embed, sign: sign_path } => {
             let body = match text {
                 Some(t) => t,
                 None => {
@@ -63,8 +84,29 @@ fn main() -> Result<()> {
                 let mut e = Embedder::new_with_cache::<std::path::PathBuf>(cli.file.parent().map(|p| p.join(".emb-cache"))).context("embedder init")?;
                 Some(e.embed_one(&body)?)
             };
-            let id = store.put(&PutRequest { title, uri, text: body, embedding, ..Default::default() })?;
+            let req = PutRequest { title, uri, text: body, embedding, ..Default::default() };
+            let id = if let Some(sk_path) = sign_path {
+                let sk = sign::load_signing_key(&sk_path).context("load signing key")?;
+                store.put_signed(&req, Some(&sk))?
+            } else {
+                store.put(&req)?
+            };
             println!("{}", id);
+        }
+        Cmd::Verify { id, vk } => {
+            let store = Store::open(&cli.file)?;
+            let vk = sign::load_verifying_key(&vk).context("load verifying key")?;
+            store.verify(id, &vk)?;
+            println!("ok verified id={}", id);
+        }
+        Cmd::Keygen { sk, vk } => {
+            sign::keygen(&sk, &vk).context("keygen")?;
+            println!("ok sk={} vk={}", sk.display(), vk.display());
+        }
+        Cmd::SnapSigned { out, level, sk } => {
+            let signing_key = sign::load_signing_key(&sk).context("load signing key")?;
+            snap::export_signed(&cli.file, &out, level, &signing_key)?;
+            println!("ok snap-signed {}", out.display());
         }
         Cmd::Find { query, limit } => {
             let store = Store::open(&cli.file)?;
