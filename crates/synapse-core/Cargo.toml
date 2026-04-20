@@ -17,6 +17,11 @@ blake3.workspace = true
 tracing.workspace = true
 fastembed = { workspace = true, optional = true }
 redb = { workspace = true, optional = true }
+ed25519-dalek = { workspace = true }
+rand = { workspace = true }
+age = { workspace = true }
+yrs = { workspace = true }
+serde_bytes = { workspace = true }
 
 [features]
 default = []

@@ -25,3 +25,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
 fastembed = "5"
 redb = "2"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = "0.8"
+age = { version = "0.10", features = ["armor"] }
+yrs = "0.21"
+serde_bytes = "0.11"

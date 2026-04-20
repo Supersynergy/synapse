@@ -2,6 +2,7 @@ use crate::error::{Error, Result};
 use crate::types::{Doc, Hit, PutRequest, SearchMode, EMBED_DIM};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
+use ed25519_dalek::SigningKey;
 
 pub struct Store {
     pub conn: Connection,
@@ -38,7 +39,9 @@ CREATE TABLE IF NOT EXISTS docs (
     text    TEXT NOT NULL,
     meta    TEXT,
     ts      INTEGER NOT NULL,
-    blake3  BLOB NOT NULL UNIQUE
+    blake3     BLOB NOT NULL UNIQUE,
+    sig        BLOB,
+    meta_crdt  BLOB
 );
 CREATE INDEX IF NOT EXISTS idx_docs_ts ON docs(ts);
 
@@ -74,7 +77,21 @@ INSERT OR IGNORE INTO meta(k,v) VALUES
     }
 
     /// Insert doc. Dedup via BLAKE3(text). Returns doc id.
+    /// If `signing_key` is provided, signs BLAKE3(text) and stores in `sig` column.
+    pub fn put_signed(&mut self, req: &PutRequest, signing_key: Option<&SigningKey>) -> Result<i64> {
+        let sig_bytes = signing_key.map(|sk| {
+            let hash = blake3::hash(req.text.as_bytes());
+            crate::sign::sign_bytes(sk, hash.as_bytes()).to_vec()
+        });
+        self.put_inner(req, sig_bytes)
+    }
+
+    /// Insert doc. Dedup via BLAKE3(text). Returns doc id.
     pub fn put(&mut self, req: &PutRequest) -> Result<i64> {
+        self.put_inner(req, None)
+    }
+
+    fn put_inner(&mut self, req: &PutRequest, sig: Option<Vec<u8>>) -> Result<i64> {
         if let Some(ref e) = req.embedding {
             if e.len() != EMBED_DIM {
                 return Err(Error::DimMismatch { expected: EMBED_DIM, got: e.len() });
@@ -97,8 +114,8 @@ INSERT OR IGNORE INTO meta(k,v) VALUES
             return Ok(id);
         }
         tx.execute(
-            "INSERT INTO docs(uri,title,text,meta,ts,blake3) VALUES (?1,?2,?3,?4,?5,?6)",
-            params![req.uri, req.title, req.text, meta_s, ts, hash_bytes],
+            "INSERT INTO docs(uri,title,text,meta,ts,blake3,sig) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![req.uri, req.title, req.text, meta_s, ts, hash_bytes, sig],
         )?;
         let id = tx.last_insert_rowid();
         if let Some(ref emb) = req.embedding {
@@ -232,6 +249,19 @@ INSERT OR IGNORE INTO meta(k,v) VALUES
         out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
         out.truncate(limit);
         Ok(out)
+    }
+
+    /// Verify the Ed25519 signature on a doc. Returns Err if no sig or invalid.
+    pub fn verify(&self, id: i64, vk: &ed25519_dalek::VerifyingKey) -> Result<()> {
+        let (text, sig_opt): (String, Option<Vec<u8>>) = self.conn.query_row(
+            "SELECT text, sig FROM docs WHERE id = ?1",
+            params![id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        ).optional()?.ok_or_else(|| Error::NotFound(format!("id={}", id)))?;
+        let sig_bytes = sig_opt.ok_or_else(|| Error::Other("doc has no signature".into()))?;
+        let arr: [u8; 64] = sig_bytes.try_into().map_err(|_| Error::Other("bad sig length".into()))?;
+        let hash = blake3::hash(text.as_bytes());
+        crate::sign::verify_bytes(vk, hash.as_bytes(), &arr)
     }
 
     pub fn stats(&self) -> Result<Stats> {
