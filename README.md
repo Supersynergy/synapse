@@ -4,9 +4,9 @@
 
 ### One file. Your AI's entire memory.
 
-Drop it in your repo. Your agent remembers every conversation — offline, portable, signed.
+Kill Qdrant + Redis + your Python venv. One binary, one file, mmap'd — your agent's memory survives `rm -rf node_modules` and a flight to Tokyo.
 
-`Rust` · `MCP-native` · `MIT` · sub-20 ms across every category
+`Rust` · `MCP-native` · `MIT` · **23 µs** BM25 · **22 µs** kNN · **0.69 ms** cold open
 
 [![CI](https://github.com/Supersynergy/synapse/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/Supersynergy/synapse/actions)
 [![Release](https://img.shields.io/github/v/tag/Supersynergy/synapse?label=release)](https://github.com/Supersynergy/synapse/releases)
@@ -16,17 +16,21 @@ Drop it in your repo. Your agent remembers every conversation — offline, porta
 
 ---
 
+```text
+put → [ BM25 ∥ HNSW+PQ ∥ KG ] → fused rank → Ed25519-signed CRDT log → .synx
+```
+
 ```bash
-# install (crates.io pending — installs straight from GitHub)
-cargo install --locked --git https://github.com/Supersynergy/synapse synapse-cli synapsed synapse-mcp
+# install (pin to a release tag)
+cargo install --locked --git https://github.com/Supersynergy/synapse --tag v1.0.0 synapse-cli synapsed synapse-mcp
 
 # run
 synapsed -f ~/brain.db &
 
 # remember
 synapse put "we chose Rust because single-binary shipping matters"
-synapse search "why Rust?"            # ≈ 0.3 ms
-synapse snap ~/brain.brainpack        # one portable, signable file
+synapse search "why Rust?"            # 23 µs
+synapse snap ~/brain.brainpack        # signed, content-addressed, offline-verifiable
 ```
 
 Wire into Claude Code — memory across every session:
@@ -42,39 +46,45 @@ Wire into Claude Code — memory across every session:
 
 ## Measured, on a 2024 laptop
 
-All numbers from `bench/RESULTS-V1.md`. Reproduce with `bash bench/bench_20_usecases.sh`.
+All numbers from [`bench/RESULTS-V1.md`](bench/RESULTS-V1.md). Reproduce with `bash bench/bench_20_usecases.sh`.
 
-| op (10 k docs, M4 Max) | Synapse | runner-up |
-|------|--------:|----------:|
-| cold open | **0.69 ms** mmap | SQLite WAL ~ 7 ms |
-| BM25 query | **23 µs / q** | Meilisearch ~ 1 ms |
-| vector kNN k = 10 | **22 µs / q** | LanceDB ~ 50 µs |
-| CRDT merge, 200 ops | **0.59 ms** | Automerge baseline |
-| sign + verify manifest | **25 µs each** | stock `ed25519-dalek` |
-| pack → ship → verify → mmap | **12 ms** | nothing equivalent |
+| op (10 k docs, M4 Max, p50) | Synapse | runner-up | gap |
+|-----------------------------|--------:|----------:|----:|
+| cold open | **0.69 ms** mmap | SQLite WAL ~ 7 ms | **10×** |
+| BM25 query | **23 µs** | Meilisearch ~ 1.0 ms | **43×** |
+| vector kNN k = 10 | **22 µs** | LanceDB ~ 50 µs | **2×** |
+| CRDT merge, 200 ops | **0.59 ms** | Automerge baseline ~ 1.0 ms | **1.7×** |
+| sign + verify manifest | **25 µs each** | `ed25519-dalek` stock | parity |
+| pack → ship → verify → mmap | **12 ms end-to-end** | tar + cosign + sqlite ≈ 340 ms | **28×** |
 
-## What you actually get in one file
+## Why one file?
+
+- **No daemons to supervise.** `synapsed` is optional; the CLI speaks to the file directly.
+- **`cp brain.db` = backup.** `git diff brain.brainpack` = audit. `scp` = deploy.
+- **Offline-first by default.** Sign with Ed25519, verify on any peer, no trust server.
+
+## What actually lives in the file
 
 - **BM25 full-text** (Tantivy) and **HNSW + int8 vector** in the same index
 - **Temporal knowledge graph** — `Supersedes`, `References`, `Contradicts`, `Summarises`
 - **Memory scopes** — Global / User / Session / Project
 - **CRDT sync** (Automerge) for multi-writer without a server
-- **Ed25519-signed `.brainpack`** — ship memory as a subscription-grade artefact
+- **Ed25519-signed `.brainpack`** — signed, content-addressed, offline-verifiable
 - **Zero-copy `mmap` reader**, 5.7 µs RPC, BLAKE3 content-addressed chunks
 
-## How it compares
+## Compared to the field
 
-Seven of the nine agent-memory capabilities across 20 incumbents are **missing** from every competitor — details in [`docs/COMPARISON-V1.md`](docs/COMPARISON-V1.md). The short version:
+**7 of 9 agent-memory capabilities are missing from every competitor we tested.** Full 20-tool matrix: [`docs/COMPARISON-V1.md`](docs/COMPARISON-V1.md).
 
-```
-                 BM25  Vector  KG   Scopes  CRDT  Sign  OneFile
-SQLite           ✅    ext     —    —       —     —     ✅
-Qdrant           –     ✅      —    ns      —     —     —
-Meilisearch      ✅    –       —    —       —     —     —
-LanceDB          ✅    ✅      —    —       —     —     partial
-memvid           ✅    —       —    —       —     —     ✅
-mem0 / Graphiti  —     delegate ✅  ✅      —     —     —
-Synapse          ✅    ✅      ✅   ✅      ✅    ✅    ✅
+```text
+                 BM25  Vector   KG    Scopes  CRDT  Sign  OneFile
+SQLite           ✅    ext      —     —       —     —     ✅
+Qdrant           —     ✅       —     ns      —     —     —
+Meilisearch      ✅    —        —     —       —     —     —
+LanceDB          ✅    ✅       —     —       —     —     partial
+memvid           ✅    —        —     —       —     —     ✅
+mem0/Graphiti    —     via-ext  ✅    ✅      —     —     —
+Synapse          ✅    ✅       ✅    ✅      ✅    ✅    ✅
 ```
 
 ## 60-second tour of the idea
@@ -85,7 +95,7 @@ Your agent has a 200 K-token context and zero memory between sessions. The usual
 
 ## Deeper dives
 
-- [`docs/CLAUDE-CODE-MEMORY.md`](docs/CLAUDE-CODE-MEMORY.md) — five real agentic workflows (per-project, code-change, research, CRM, compliance)
+- [`docs/CLAUDE-CODE-MEMORY.md`](docs/CLAUDE-CODE-MEMORY.md) — five real agentic workflows
 - [`docs/SYNX-FORMAT-V2.md`](docs/SYNX-FORMAT-V2.md) — binary format spec (CC0)
 - [`docs/BRAINPACK-V2.md`](docs/BRAINPACK-V2.md) — distribution wrapper + signing
 - [`docs/COMPARISON-V1.md`](docs/COMPARISON-V1.md) — 20-tool head-to-head
@@ -95,13 +105,13 @@ Your agent has a 200 K-token context and zero memory between sessions. The usual
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — how Synapse tops each competitor on their home turf
 - [`CHANGELOG.md`](CHANGELOG.md) — v0.2.0 → v1.0.0 history
 
-## Ecosystem integrations
+## Ecosystem
 
-- **Claude Code** — drop in the MCP block above, restart, you have persistent memory
-- **Any MCP agent** — Cursor, Cline, Continue, Aider all accept the same config
-- **Node.js** — `@synapse/sdk` in [`sdk/node`](sdk/node)
-- **Python** — [`sdk/python/synapse_reader.py`](sdk/python/synapse_reader.py) (stdlib + `zstandard` + `blake3`)
-- **DuckDB analytics** — `ATTACH 'brain.db' AS s (TYPE sqlite, READ_ONLY);` and query the v1 engine directly
+- **Claude Code** — paste the MCP block above, restart, done
+- **Any MCP agent** — Cursor, Cline, Continue, Aider share the same config
+- **Node.js** — [`sdk/node`](sdk/node)
+- **Python** — [`sdk/python/synapse_reader.py`](sdk/python/synapse_reader.py), stdlib + `zstandard` + `blake3`
+- **DuckDB analytics** — `ATTACH 'brain.db' AS s (TYPE sqlite, READ_ONLY);`
 
 ## License
 
