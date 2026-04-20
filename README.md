@@ -155,31 +155,33 @@ Reproduce: `cargo bench -p synapse-core --features full`. Full 50-usecase bench 
 
 </div>
 
-| Tool | BM25 | Vector | KG | Scopes | CRDT | Sign | OneFile | µs-IPC | MCP | OSS |
-|------|:----:|:------:|:--:|:------:|:----:|:----:|:-------:|:------:|:---:|:---:|
-| **→ Synapse** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **MIT + CC0** |
-| SQLite | ✅ | ext | — | — | — | — | ✅ | — | wrap | ✅ |
-| DuckDB | ext | ext | — | — | — | — | ✅ | — | wrap | ✅ |
-| SurrealDB | ✅ | ✅ | ✅ | — | — | — | — | — | wrap | ❌ BSL |
-| PocketBase | ✅ | ext | — | — | — | — | ✅ | — | wrap | ✅ |
-| Qdrant | — | ✅ | — | ns | — | — | — | — | wrap | ✅ |
-| Meilisearch | ✅ | part | — | — | — | — | — | — | wrap | ✅ |
-| LanceDB | ✅ | ✅ | — | — | — | — | part | — | wrap | ✅ |
-| Chroma | — | ✅ | — | — | — | — | — | — | wrap | ✅ |
-| Weaviate | ✅ | ✅ | part | ns | — | — | — | — | wrap | ✅ |
-| Pinecone | — | ✅ | — | ns | — | — | — | — | wrap | ❌ closed |
-| memvid | ✅ | — | — | — | — | — | ✅ | — | — | ✅ |
-| mem0 | — | ext | ext | ✅ | — | — | — | — | wrap | ✅ |
-| Graphiti | — | ext | ✅ | ✅ | — | — | — | — | wrap | ✅ |
-| cognee | — | ext | ✅ | ✅ | — | — | — | — | wrap | ✅ |
-| Memori | — | — | — | ✅ | — | — | — | — | wrap | ✅ |
-| Zep | — | ✅ | part | ✅ | — | — | — | — | wrap | ✅ |
-| Letta | — | ✅ | — | ✅ | — | — | — | — | wrap | ✅ |
-| Automerge | — | — | — | — | ✅ | — | — | — | — | ✅ |
-| RocksDB | — | — | — | — | — | — | ✅ | — | — | ✅ |
-| Parquet | — | — | — | — | — | — | ✅ | — | — | ✅ |
+<sup>Click the image for the full-size version. The short table below is the same data, text-searchable.</sup>
 
-<sup>Legend: `ext` via extension · `ns` via namespace filter, no scope type · `part` partial · `wrap` wrapper bridge · `BSL / closed` not permissively OSS.</sup>
+| Tool | BM25 · keyword | Vector · semantic | Graph · relations + time | Scopes · user / session | Sync · multi-writer | Signing · Ed25519 | One file | µs-RPC | License |
+|------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **→ Synapse** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **MIT + CC0** |
+| SQLite | ✅ | add-on | — | — | — | — | ✅ | — | Public |
+| DuckDB | add-on | add-on | — | — | — | — | ✅ | — | MIT |
+| SurrealDB | ✅ | ✅ | ✅ | — | — | — | — | — | ❌ BSL |
+| PocketBase | ✅ | add-on | — | — | — | — | ✅ | — | MIT |
+| Qdrant | — | ✅ | — | tag only | — | — | — | — | Apache |
+| Meilisearch | ✅ | partial | — | — | — | — | — | — | MIT |
+| LanceDB | ✅ | ✅ | — | — | — | — | partial | — | Apache |
+| Chroma | — | ✅ | — | — | — | — | — | — | Apache |
+| Weaviate | ✅ | ✅ | partial | tag only | — | — | — | — | BSD |
+| Pinecone | — | ✅ | — | tag only | — | — | — | — | ❌ closed |
+| memvid | ✅ | — | — | — | — | — | ✅ | — | MIT |
+| mem0 | — | add-on | add-on | ✅ | — | — | — | — | Apache |
+| Graphiti | — | add-on | ✅ | ✅ | — | — | — | — | Apache |
+| cognee | — | add-on | ✅ | ✅ | — | — | — | — | Apache |
+| Memori | — | — | — | ✅ | — | — | — | — | MIT |
+| Zep | — | ✅ | partial | ✅ | — | — | — | — | Apache |
+| Letta | — | ✅ | — | ✅ | — | — | — | — | Apache |
+| Automerge | — | — | — | — | ✅ | — | — | — | MIT |
+| RocksDB | — | — | — | — | — | — | ✅ | — | Apache |
+| Parquet | — | — | — | — | — | — | ✅ | — | Apache |
+
+<sup>**add-on** = needs an extension · **tag only** = namespace filter, no real scope concept · **partial** = available but limited · **BSL / closed** = not permissive OSS.</sup>
 
 Full one-by-one breakdown: [`docs/COMPARISON-V1.md`](docs/COMPARISON-V1.md).
 
