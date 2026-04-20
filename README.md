@@ -1,6 +1,8 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="Synapse — one file. Your AI's entire memory. 23µs BM25 · 22µs kNN · 0.69ms cold open." width="100%"/>
+<img src="assets/banner.svg" alt="Synapse — one file. Your AI's entire memory. 22µs kNN · 23µs BM25 · 0.69ms cold open." width="100%"/>
+
+<sub>Criterion-reproducible numbers: `cargo bench -p synapse-core --features full`. Recall eval on LoCoMo / LongMemEval lands in v0.4 — see [`docs/EVAL-HARNESS.md`](docs/EVAL-HARNESS.md).</sub>
 
 ### One file. Your AI's entire memory.
 
