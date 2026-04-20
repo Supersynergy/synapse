@@ -1,6 +1,6 @@
 <div align="center">
 
-# Synapse
+<img src="assets/banner.svg" alt="Synapse — one file. Your AI's entire memory. 23µs BM25 · 22µs kNN · 0.69ms cold open." width="100%"/>
 
 ### One file. Your AI's entire memory.
 
@@ -11,6 +11,7 @@ Kill Qdrant + Redis + your Python venv. One binary, one file, mmap'd — your ag
 [![CI](https://github.com/Supersynergy/synapse/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/Supersynergy/synapse/actions)
 [![Release](https://img.shields.io/github/v/tag/Supersynergy/synapse?label=release)](https://github.com/Supersynergy/synapse/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/Supersynergy/synapse?style=flat&color=ffcc00)](https://github.com/Supersynergy/synapse/stargazers)
 
 </div>
 
@@ -21,7 +22,7 @@ put → [ BM25 ∥ HNSW+PQ ∥ KG ] → fused rank → Ed25519-signed CRDT log �
 ```
 
 ```bash
-# install (pin to a release tag)
+# install — pinned to a release tag (crates.io publish queued for v1.0.1)
 cargo install --locked --git https://github.com/Supersynergy/synapse --tag v1.0.0 synapse-cli synapsed synapse-mcp
 
 # run
@@ -44,9 +45,10 @@ Wire into Claude Code — memory across every session:
 
 ---
 
-## Measured, on a 2024 laptop
+## Head to head, numbers you can re-run
 
-All numbers from [`bench/RESULTS-V1.md`](bench/RESULTS-V1.md). Reproduce with `bash bench/bench_20_usecases.sh`.
+Every row below reproduces with one command: `bash bench/bench_20_usecases.sh`.
+Full 50-usecase matrix + CatBoost-picked defaults: [`bench/RESULTS-V1.md`](bench/RESULTS-V1.md).
 
 | op (10 k docs, M4 Max, p50) | Synapse | runner-up | gap |
 |-----------------------------|--------:|----------:|----:|
