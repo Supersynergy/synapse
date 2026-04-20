@@ -1,0 +1,301 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1200" role="img" aria-label="Synapse vs 20 competitors — full-size capability matrix.">
+  <defs>
+    <pattern id="gF" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="1200" fill="#0a0a0a"/>
+  <rect width="1600" height="1200" fill="url(#gF)"/>
+
+  <text x="80" y="70" font-family="Inter, SF Pro Display, system-ui, sans-serif" font-size="40" font-weight="800" fill="#fafafa" letter-spacing="-1">
+    Synapse vs the field
+  </text>
+  <text x="80" y="108" font-family="Inter, SF Pro Display, system-ui, sans-serif" font-size="18" font-weight="400" fill="#737373">
+    9 agent-memory capabilities · 20 incumbents · only Synapse ships all nine in one file
+  </text>
+
+  <!-- column headers -->
+  <g font-family="JetBrains Mono, ui-monospace, monospace" font-size="15" font-weight="600" fill="#a3a3a3">
+    <text x="100"  y="180">Tool</text>
+    <text x="520"  y="180" text-anchor="middle">BM25</text>
+    <text x="625"  y="180" text-anchor="middle">Vector</text>
+    <text x="730"  y="180" text-anchor="middle">KG</text>
+    <text x="835"  y="180" text-anchor="middle">Scopes</text>
+    <text x="940"  y="180" text-anchor="middle">CRDT</text>
+    <text x="1045" y="180" text-anchor="middle">Sign</text>
+    <text x="1150" y="180" text-anchor="middle">OneFile</text>
+    <text x="1255" y="180" text-anchor="middle">µs-IPC</text>
+    <text x="1360" y="180" text-anchor="middle">MCP</text>
+    <text x="1480" y="180" text-anchor="middle">License</text>
+  </g>
+  <line x1="100" y1="198" x2="1520" y2="198" stroke="rgba(255,255,255,0.08)"/>
+
+  <!-- hero Synapse row at top -->
+  <rect x="80" y="218" width="1440" height="64" fill="rgba(255,87,34,0.12)"/>
+  <rect x="80" y="218" width="5" height="64" fill="#ff5722"/>
+  <g font-family="JetBrains Mono, ui-monospace, monospace" font-size="19" font-weight="700" fill="#fafafa">
+    <text x="100"  y="258">Synapse</text>
+    <text x="520"  y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="625"  y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="730"  y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="835"  y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="940"  y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="1045" y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="1150" y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="1255" y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="1360" y="258" fill="#ff5722" text-anchor="middle">✓</text>
+    <text x="1480" y="258" fill="#fafafa" text-anchor="middle" font-size="15">MIT + CC0</text>
+  </g>
+
+  <line x1="100" y1="302" x2="1520" y2="302" stroke="rgba(255,255,255,0.15)"/>
+  <text x="100" y="330" font-family="Inter, SF Pro Display, system-ui, sans-serif" font-size="13" font-weight="600" fill="#525252" letter-spacing="3">INCUMBENTS</text>
+
+  <!-- competitor rows: start y=370, step 41 for readability -->
+  <g fill="rgba(255,255,255,0.015)">
+    <rect x="80" y="348" width="1440" height="41"/>
+    <rect x="80" y="430" width="1440" height="41"/>
+    <rect x="80" y="512" width="1440" height="41"/>
+    <rect x="80" y="594" width="1440" height="41"/>
+    <rect x="80" y="676" width="1440" height="41"/>
+    <rect x="80" y="758" width="1440" height="41"/>
+    <rect x="80" y="840" width="1440" height="41"/>
+    <rect x="80" y="922" width="1440" height="41"/>
+    <rect x="80" y="1004" width="1440" height="41"/>
+    <rect x="80" y="1086" width="1440" height="41"/>
+  </g>
+
+  <g font-family="JetBrains Mono, ui-monospace, monospace" font-size="16" fill="#e5e5e5">
+    <!-- rows y starts at 374, step 41 -->
+    <text x="100"  y="375">SQLite</text>
+    <text x="520"  y="375" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="625"  y="375" fill="#737373" text-anchor="middle">ext</text>
+    <text x="730"  y="375" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="375" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="375" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="375" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="375" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1255" y="375" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="375" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="375" fill="#fafafa" text-anchor="middle">Public</text>
+
+    <text x="100"  y="416">DuckDB</text>
+    <text x="520"  y="416" fill="#737373" text-anchor="middle">ext</text>
+    <text x="625"  y="416" fill="#737373" text-anchor="middle">ext</text>
+    <text x="730"  y="416" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="416" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="416" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="416" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="416" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1255" y="416" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="416" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="416" fill="#fafafa" text-anchor="middle">MIT</text>
+
+    <text x="100"  y="457">SurrealDB</text>
+    <text x="520"  y="457" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="625"  y="457" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="730"  y="457" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="835"  y="457" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="457" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="457" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="457" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="457" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="457" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="457" fill="#b91c1c" text-anchor="middle">BSL</text>
+
+    <text x="100"  y="498">PocketBase</text>
+    <text x="520"  y="498" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="625"  y="498" fill="#737373" text-anchor="middle">ext</text>
+    <text x="730"  y="498" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="498" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="498" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="498" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="498" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1255" y="498" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="498" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="498" fill="#fafafa" text-anchor="middle">MIT</text>
+
+    <text x="100"  y="539">Qdrant</text>
+    <text x="520"  y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="539" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="730"  y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="539" fill="#737373" text-anchor="middle">ns</text>
+    <text x="940"  y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="539" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="539" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="539" fill="#fafafa" text-anchor="middle">Apache</text>
+
+    <text x="100"  y="580">Meilisearch</text>
+    <text x="520"  y="580" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="625"  y="580" fill="#737373" text-anchor="middle">part</text>
+    <text x="730"  y="580" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="580" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="580" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="580" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="580" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="580" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="580" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="580" fill="#fafafa" text-anchor="middle">MIT</text>
+
+    <text x="100"  y="621">LanceDB</text>
+    <text x="520"  y="621" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="625"  y="621" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="730"  y="621" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="621" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="621" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="621" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="621" fill="#737373" text-anchor="middle">part</text>
+    <text x="1255" y="621" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="621" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="621" fill="#fafafa" text-anchor="middle">Apache</text>
+
+    <text x="100"  y="662">Chroma</text>
+    <text x="520"  y="662" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="662" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="730"  y="662" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="662" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="662" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="662" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="662" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="662" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="662" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="662" fill="#fafafa" text-anchor="middle">Apache</text>
+
+    <text x="100"  y="703">Weaviate</text>
+    <text x="520"  y="703" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="625"  y="703" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="730"  y="703" fill="#737373" text-anchor="middle">part</text>
+    <text x="835"  y="703" fill="#737373" text-anchor="middle">ns</text>
+    <text x="940"  y="703" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="703" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="703" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="703" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="703" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="703" fill="#fafafa" text-anchor="middle">BSD</text>
+
+    <text x="100"  y="744">Pinecone</text>
+    <text x="520"  y="744" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="744" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="730"  y="744" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="744" fill="#737373" text-anchor="middle">ns</text>
+    <text x="940"  y="744" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="744" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="744" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="744" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="744" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="744" fill="#b91c1c" text-anchor="middle">closed</text>
+
+    <text x="100"  y="785">memvid</text>
+    <text x="520"  y="785" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="625"  y="785" fill="#525252" text-anchor="middle">—</text>
+    <text x="730"  y="785" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="785" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="785" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="785" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="785" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1255" y="785" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="785" fill="#525252" text-anchor="middle">—</text>
+    <text x="1480" y="785" fill="#fafafa" text-anchor="middle">MIT</text>
+
+    <text x="100"  y="826">mem0</text>
+    <text x="520"  y="826" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="826" fill="#737373" text-anchor="middle">ext</text>
+    <text x="730"  y="826" fill="#737373" text-anchor="middle">ext</text>
+    <text x="835"  y="826" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="940"  y="826" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="826" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="826" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="826" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="826" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="826" fill="#fafafa" text-anchor="middle">Apache</text>
+
+    <text x="100"  y="867">Graphiti</text>
+    <text x="520"  y="867" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="867" fill="#737373" text-anchor="middle">ext</text>
+    <text x="730"  y="867" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="835"  y="867" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="940"  y="867" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="867" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="867" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="867" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="867" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="867" fill="#fafafa" text-anchor="middle">Apache</text>
+
+    <text x="100"  y="908">cognee</text>
+    <text x="520"  y="908" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="908" fill="#737373" text-anchor="middle">ext</text>
+    <text x="730"  y="908" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="835"  y="908" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="940"  y="908" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="908" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="908" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="908" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="908" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="908" fill="#fafafa" text-anchor="middle">Apache</text>
+
+    <text x="100"  y="949">Memori</text>
+    <text x="520"  y="949" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="949" fill="#525252" text-anchor="middle">—</text>
+    <text x="730"  y="949" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="949" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="940"  y="949" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="949" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="949" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="949" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="949" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="949" fill="#fafafa" text-anchor="middle">MIT</text>
+
+    <text x="100"  y="990">Zep</text>
+    <text x="520"  y="990" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="990" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="730"  y="990" fill="#737373" text-anchor="middle">part</text>
+    <text x="835"  y="990" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="940"  y="990" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="990" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="990" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="990" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="990" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="990" fill="#fafafa" text-anchor="middle">Apache</text>
+
+    <text x="100"  y="1031">Letta</text>
+    <text x="520"  y="1031" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="1031" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="730"  y="1031" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="1031" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="940"  y="1031" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="1031" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="1031" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="1031" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="1031" fill="#737373" text-anchor="middle">wrap</text>
+    <text x="1480" y="1031" fill="#fafafa" text-anchor="middle">Apache</text>
+
+    <text x="100"  y="1072">Automerge</text>
+    <text x="520"  y="1072" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="1072" fill="#525252" text-anchor="middle">—</text>
+    <text x="730"  y="1072" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="1072" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="1072" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1045" y="1072" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="1072" fill="#525252" text-anchor="middle">—</text>
+    <text x="1255" y="1072" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="1072" fill="#525252" text-anchor="middle">—</text>
+    <text x="1480" y="1072" fill="#fafafa" text-anchor="middle">MIT</text>
+
+    <text x="100"  y="1113">RocksDB</text>
+    <text x="520"  y="1113" fill="#525252" text-anchor="middle">—</text>
+    <text x="625"  y="1113" fill="#525252" text-anchor="middle">—</text>
+    <text x="730"  y="1113" fill="#525252" text-anchor="middle">—</text>
+    <text x="835"  y="1113" fill="#525252" text-anchor="middle">—</text>
+    <text x="940"  y="1113" fill="#525252" text-anchor="middle">—</text>
+    <text x="1045" y="1113" fill="#525252" text-anchor="middle">—</text>
+    <text x="1150" y="1113" fill="#fafafa" text-anchor="middle">✓</text>
+    <text x="1255" y="1113" fill="#525252" text-anchor="middle">—</text>
+    <text x="1360" y="1113" fill="#525252" text-anchor="middle">—</text>
+    <text x="1480" y="1113" fill="#fafafa" text-anchor="middle">Apache</text>
+  </g>
+
+  <text x="100" y="1170" font-family="Inter, SF Pro Display, system-ui, sans-serif" font-size="13" fill="#525252">
+    ext = via extension · ns = namespace filter, no scope type · part = partial · wrap = wrapper bridge · BSL / closed = not permissively OSS
+  </text>
+</svg>
