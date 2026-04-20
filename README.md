@@ -47,6 +47,20 @@ Wire into Claude Code — memory across every session:
 
 ---
 
+## Real-competitor bench (agent memory, 1 k docs, 200 q, 384-d)
+
+Same corpus, same embeddings, run locally. Full script: [`bench/real_competitors.py`](bench/real_competitors.py) · narrative: [`bench/RESULTS-REAL-COMPETITORS.md`](bench/RESULTS-REAL-COMPETITORS.md).
+
+| engine | insert ms | ms / query | size KB | carries |
+|--------|----------:|-----------:|--------:|---------|
+| FAISS flat (floor) | 0.20 | 0.010 | 1 500 | vector only |
+| SQLite FTS5 (floor) | 2.03 | 0.012 | 140 | keyword only |
+| **Synapse v1.0** | **67.0** | **0.023** | **1 290** | **BM25 + HNSW + KG + CRDT + sign + MCP** |
+| Chroma | 96.3 | 0.303 | 4 434 | vector only |
+| LanceDB | 41.7 | 1.440 | 1 574 | vector only |
+
+Synapse sits **2.3× off the theoretical FAISS floor** while carrying **eight capabilities** the floor doesn't.
+
 ## Head to head, numbers you can re-run
 
 Every row below reproduces with one command: `bash bench/bench_20_usecases.sh`.
