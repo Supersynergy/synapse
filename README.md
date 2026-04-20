@@ -151,7 +151,7 @@ Reproduce: `cargo bench -p synapse-core --features full`. Full 50-usecase bench 
 
 <a href="assets/matrix-full.svg"><img src="assets/matrix-full.svg" alt="Synapse vs the field — 20-tool capability matrix" width="100%"/></a>
 
-<sub>Click for the full-size 1600×1200 version · ASCII-friendly markdown table below.</sub>
+<sub>Click for the full-size 2200×1500 version · searchable markdown table below.</sub>
 
 </div>
 
