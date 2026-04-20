@@ -1,29 +1,55 @@
 //! Embedding pipeline: fastembed-rs (BGE-small-en-v1.5 ONNX, 384-dim) + redb BLAKE3 cache.
 //!
-//! Cache is persistent — identical text -> zero recompute across daemon restarts.
+//! Cold-start fix: global ONNX session pool (default 2 sessions) initialized once,
+//! reused across all Embedder instances — eliminates per-request model reload overhead.
 
 use crate::error::{Error, Result};
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use redb::{Database, ReadableTableMetadata, TableDefinition};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 const EMB_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("emb_cache_v1");
 
+/// Number of ONNX sessions in the global pool.
+pub const POOL_SIZE: usize = 2;
+
+/// Global pool of pre-warmed TextEmbedding sessions.
+static SESSION_POOL: OnceCell<Mutex<Vec<TextEmbedding>>> = OnceCell::new();
+
+fn get_or_init_pool() -> Result<&'static Mutex<Vec<TextEmbedding>>> {
+    SESSION_POOL.get_or_try_init(|| {
+        let mut sessions = Vec::with_capacity(POOL_SIZE);
+        for _ in 0..POOL_SIZE {
+            let m = TextEmbedding::try_new(
+                InitOptions::new(EmbeddingModel::BGESmallENV15).with_show_download_progress(false),
+            ).map_err(|e| Error::Other(format!("fastembed init: {e}")))?;
+            sessions.push(m);
+        }
+        Ok(Mutex::new(sessions))
+    })
+}
+
+/// Warm the global ONNX session pool eagerly (call once at daemon start).
+pub fn warm_pool() -> Result<()> {
+    get_or_init_pool()?;
+    Ok(())
+}
+
 pub struct Embedder {
-    model: TextEmbedding,
     cache: Option<Arc<Database>>,
 }
 
 impl Embedder {
     pub fn new() -> Result<Self> {
-        Self::new_with_cache::<PathBuf>(None)
+        get_or_init_pool()?;
+        Ok(Self { cache: None })
     }
 
     pub fn new_with_cache<P: AsRef<Path>>(cache_path: Option<P>) -> Result<Self> {
-        let model = TextEmbedding::try_new(
-            InitOptions::new(EmbeddingModel::BGESmallENV15).with_show_download_progress(false),
-        ).map_err(|e| Error::Other(format!("fastembed init: {e}")))?;
+        get_or_init_pool()?;
         let cache = match cache_path {
             Some(p) => {
                 if let Some(parent) = p.as_ref().parent() { std::fs::create_dir_all(parent).ok(); }
@@ -36,19 +62,28 @@ impl Embedder {
             }
             None => None,
         };
-        Ok(Self { model, cache })
+        Ok(Self { cache })
     }
 
-    pub fn embed_batch(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        if self.cache.is_some() {
-            let cache = self.cache.clone().unwrap();
-            return self.embed_batch_cached(&cache, texts);
+    fn embed_raw(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        let pool = get_or_init_pool()?;
+        let mut guard = pool.lock();
+        // Round-robin: pop last session, embed, push back.
+        let mut session = guard.pop().ok_or_else(|| Error::Other("pool empty".into()))?;
+        let result = session.embed(texts, None)
+            .map_err(|e| Error::Other(format!("embed: {e}")));
+        guard.push(session);
+        result
+    }
+
+    pub fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        if let Some(ref cache) = self.cache {
+            return self.embed_batch_cached(cache, texts);
         }
-        self.model.embed(texts.to_vec(), None)
-            .map_err(|e| Error::Other(format!("embed: {e}")))
+        self.embed_raw(texts.to_vec())
     }
 
-    fn embed_batch_cached(&mut self, cache: &Database, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+    fn embed_batch_cached(&self, cache: &Database, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let hashes: Vec<[u8; 32]> = texts.iter()
             .map(|t| *blake3::hash(t.as_bytes()).as_bytes()).collect();
         let mut out: Vec<Option<Vec<f32>>> = vec![None; texts.len()];
@@ -71,8 +106,7 @@ impl Embedder {
         }
         if !miss_idx.is_empty() {
             let miss_texts: Vec<String> = miss_idx.iter().map(|&i| texts[i].clone()).collect();
-            let new_embs = self.model.embed(miss_texts, None)
-                .map_err(|e| Error::Other(format!("embed: {e}")))?;
+            let new_embs = self.embed_raw(miss_texts)?;
             let wtx = cache.begin_write().map_err(|e| Error::Other(format!("redb wtx: {e}")))?;
             {
                 let mut t = wtx.open_table(EMB_TABLE).map_err(|e| Error::Other(format!("redb tbl: {e}")))?;
@@ -88,7 +122,7 @@ impl Embedder {
         Ok(out.into_iter().map(|o| o.unwrap()).collect())
     }
 
-    pub fn embed_one(&mut self, text: &str) -> Result<Vec<f32>> {
+    pub fn embed_one(&self, text: &str) -> Result<Vec<f32>> {
         let mut out = self.embed_batch(&[text.to_string()])?;
         out.pop().ok_or_else(|| Error::Other("empty embed".into()))
     }
