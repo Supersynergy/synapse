@@ -2,7 +2,9 @@
 
 pub mod crdt;
 pub mod db;
+pub mod federate;
 pub mod error;
+pub mod shard;
 pub mod sign;
 pub mod snap;
 pub mod types;
