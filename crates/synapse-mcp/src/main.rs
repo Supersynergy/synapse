@@ -74,7 +74,15 @@ async fn handle(sock: &PathBuf, req: &JsonRpc) -> Result<Value> {
                 "q": {"type": "string"}, "mode": {"type": "string", "enum": ["Lex", "Vec", "Hybrid"]},
                 "limit": {"type": "integer"}, "embed_query": {"type": "boolean"}
             }, "required": ["q"]}},
-            {"name": "stats", "description": "Memory stats.", "inputSchema": {"type": "object"}}
+            {"name": "merge", "description": "Merge CRDT state into a doc.", "inputSchema": {"type": "object", "properties": {
+                "id": {"type": "integer"}, "state": {"type": "array", "items": {"type": "integer"}}
+            }, "required": ["id", "state"]}},
+            {"name": "timeline", "description": "Return docs ordered by timestamp descending.", "inputSchema": {"type": "object", "properties": {
+                "limit": {"type": "integer"}, "offset": {"type": "integer"}
+            }}},
+            {"name": "verify", "description": "Verify Ed25519 signature on a doc.", "inputSchema": {"type": "object", "properties": {
+                "id": {"type": "integer"}, "vk": {"type": "array", "items": {"type": "integer"}}
+            }, "required": ["id", "vk"]}}
         ]})),
         "tools/call" => {
             let name = req.params.get("name").and_then(|v| v.as_str())
@@ -101,7 +109,20 @@ async fn tool_call(sock: &PathBuf, name: &str, args: Value) -> Result<Value> {
             "limit": args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10),
             "embed_query": args.get("embed_query").and_then(|v| v.as_bool()).unwrap_or(false),
         }}),
-        "stats" => json!({"op": "Stats"}),
+        "merge" => {
+            let id = args.get("id").and_then(|v| v.as_i64()).context("merge requires id")?;
+            let state_bytes = json_array_to_bytes(args.get("state"))?;
+            json!({"op": "Merge", "args": {"id": id, "state": state_bytes}})
+        },
+        "timeline" => json!({"op": "Timeline", "args": {
+            "limit": args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20),
+            "offset": args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0),
+        }}),
+        "verify" => {
+            let id = args.get("id").and_then(|v| v.as_i64()).context("verify requires id")?;
+            let vk_bytes = json_array_to_bytes(args.get("vk"))?;
+            json!({"op": "Verify", "args": {"id": id, "vk": vk_bytes}})
+        },
         _ => anyhow::bail!("unknown tool: {name}"),
     };
     let mut stream = UnixStream::connect(sock).await.context("connect synapsed")?;
@@ -117,4 +138,9 @@ async fn tool_call(sock: &PathBuf, name: &str, args: Value) -> Result<Value> {
     stream.read_exact(&mut buf).await?;
     let v: Value = rmp_serde::from_slice(&buf)?;
     Ok(v)
+}
+
+fn json_array_to_bytes(v: Option<&Value>) -> Result<Vec<u8>> {
+    let arr = v.and_then(|v| v.as_array()).context("expected byte array")?;
+    arr.iter().map(|b| b.as_u64().map(|n| n as u8).context("byte value")).collect()
 }
