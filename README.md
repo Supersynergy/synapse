@@ -76,18 +76,41 @@ Full 50-usecase matrix + CatBoost-picked defaults: [`bench/RESULTS-V1.md`](bench
 
 ## Compared to the field
 
-**7 of 9 agent-memory capabilities are missing from every competitor we tested.** Full 20-tool matrix: [`docs/COMPARISON-V1.md`](docs/COMPARISON-V1.md).
+**9 capabilities. 20 incumbents. Only Synapse ships them all in one file.**
 
-```text
-                 BM25  Vector   KG    Scopes  CRDT  Sign  OneFile
-SQLite           ✅    ext      —     —       —     —     ✅
-Qdrant           —     ✅       —     ns      —     —     —
-Meilisearch      ✅    —        —     —       —     —     —
-LanceDB          ✅    ✅       —     —       —     —     partial
-memvid           ✅    —        —     —       —     —     ✅
-mem0/Graphiti    —     via-ext  ✅    ✅      —     —     —
-Synapse          ✅    ✅       ✅    ✅      ✅    ✅    ✅
-```
+<div align="center">
+
+<img src="assets/matrix.svg" alt="Synapse vs the field — capability matrix" width="100%"/>
+
+</div>
+
+| Tool | BM25 | Vector | KG | Scopes | CRDT | Sign | OneFile | µs-IPC | MCP | OSS |
+|------|:----:|:------:|:--:|:------:|:----:|:----:|:-------:|:------:|:---:|:---:|
+| SQLite | ✅ | ext | — | — | — | — | ✅ | — | wrap | ✅ |
+| DuckDB | ext | ext | — | — | — | — | ✅ | — | wrap | ✅ |
+| SurrealDB | ✅ | ✅ | ✅ | — | — | — | — | — | wrap | ❌ BSL |
+| PocketBase | ✅ | ext | — | — | — | — | ✅ | — | wrap | ✅ |
+| Qdrant | — | ✅ | — | ns | — | — | — | — | wrap | ✅ |
+| Meilisearch | ✅ | part | — | — | — | — | — | — | wrap | ✅ |
+| LanceDB | ✅ | ✅ | — | — | — | — | part | — | wrap | ✅ |
+| Chroma | — | ✅ | — | — | — | — | — | — | wrap | ✅ |
+| Weaviate | ✅ | ✅ | part | ns | — | — | — | — | wrap | ✅ |
+| Pinecone | — | ✅ | — | ns | — | — | — | — | wrap | ❌ closed |
+| memvid | ✅ | — | — | — | — | — | ✅ | — | — | ✅ |
+| mem0 | — | ext | ext | ✅ | — | — | — | — | wrap | ✅ |
+| Graphiti | — | ext | ✅ | ✅ | — | — | — | — | wrap | ✅ |
+| cognee | — | ext | ✅ | ✅ | — | — | — | — | wrap | ✅ |
+| Memori | — | — | — | ✅ | — | — | — | — | wrap | ✅ |
+| Zep | — | ✅ | part | ✅ | — | — | — | — | wrap | ✅ |
+| Letta | — | ✅ | — | ✅ | — | — | — | — | wrap | ✅ |
+| Automerge | — | — | — | — | ✅ | — | — | — | — | ✅ |
+| RocksDB | — | — | — | — | — | — | ✅ | — | — | ✅ |
+| Parquet | — | — | — | — | — | — | ✅ | — | — | ✅ |
+| **Synapse** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **MIT+CC0** |
+
+<sup>Legend: `ext` via extension · `ns` via namespace filter, no scope type · `part` partial · `wrap` wrapper bridge · `BSL / closed` not permissively OSS.</sup>
+
+Full one-by-one breakdown: [`docs/COMPARISON-V1.md`](docs/COMPARISON-V1.md).
 
 ## 60-second tour of the idea
 
