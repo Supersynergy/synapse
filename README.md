@@ -17,11 +17,11 @@ Drop it in your repo. Your agent remembers every conversation — offline, porta
 ---
 
 ```bash
-# install
-cargo install synapse-cli synapsed synapse-mcp
+# install (crates.io pending — installs straight from GitHub)
+cargo install --locked --git https://github.com/Supersynergy/synapse synapse-cli synapsed synapse-mcp
 
 # run
-synapsed -f ~/brain.synx &
+synapsed -f ~/brain.db &
 
 # remember
 synapse put "we chose Rust because single-binary shipping matters"
