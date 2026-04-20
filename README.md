@@ -7,6 +7,9 @@
 One file on disk. Drop it in your project. Your AI picks up where you left off — last week, last month, last laptop.
 
 [![Release](https://img.shields.io/github/v/tag/Supersynergy/synapse?label=release&color=blueviolet)](https://github.com/Supersynergy/synapse/releases)
+[![CI](https://github.com/Supersynergy/synapse/actions/workflows/quality.yml/badge.svg)](https://github.com/Supersynergy/synapse/actions/workflows/quality.yml)
+[![Coverage](https://codecov.io/gh/Supersynergy/synapse/branch/main/graph/badge.svg)](https://codecov.io/gh/Supersynergy/synapse)
+[![MSRV](https://img.shields.io/badge/MSRV-1.95.0-orange)](rust-toolchain.toml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Supersynergy/synapse?style=flat&color=ffcc00)](https://github.com/Supersynergy/synapse/stargazers)
 [![CRDT](https://img.shields.io/badge/CRDT-yrs-8a2be2)](crates/synapse-core/src/crdt.rs)
