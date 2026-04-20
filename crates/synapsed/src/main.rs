@@ -1,12 +1,16 @@
 //! synapsed — persistent daemon. Unix socket + length-prefixed msgpack.
 
+mod metrics;
 mod proto;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 use proto::{PutReq, Request, Response};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
+
 use synapse_core::{embed::Embedder, snap, PutRequest, SearchMode, Store};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
@@ -32,6 +36,9 @@ struct Cli {
     /// Max bytes accepted per `Put.text`. Default: 16 MiB.
     #[arg(long, default_value_t = 16 * 1024 * 1024)]
     max_put_bytes: usize,
+    /// Prometheus metrics endpoint. Default: 127.0.0.1:9090. Env: SYNAPSE_METRICS_ADDR.
+    #[arg(long, env = "SYNAPSE_METRICS_ADDR", default_value = "127.0.0.1:9090")]
+    metrics_addr: SocketAddr,
 }
 
 struct State {
@@ -159,6 +166,31 @@ async fn dispatch(state: &State, req: Request) -> Response {
             info!("shutdown requested");
             std::process::exit(0);
         }
+        Request::Merge { id, state: crdt_state } => {
+            match state.store.lock().await.merge_crdt(id, &crdt_state) {
+                Ok(()) => Response::Ok,
+                Err(e) => Response::Err(e.to_string()),
+            }
+        }
+        Request::Timeline { limit, offset } => {
+            match state.store.lock().await.timeline(limit, offset) {
+                Ok(docs) => Response::Docs(docs),
+                Err(e) => Response::Err(e.to_string()),
+            }
+        }
+        Request::Verify { id, vk } => {
+            let arr_result: std::result::Result<[u8; 32], _> = vk.try_into();
+            match arr_result {
+                Err(_) => Response::Err("vk must be 32 bytes".into()),
+                Ok(arr) => match ed25519_dalek::VerifyingKey::from_bytes(&arr) {
+                    Err(e) => Response::Err(e.to_string()),
+                    Ok(verifying_key) => match state.store.lock().await.verify(id, &verifying_key) {
+                        Ok(()) => Response::Ok,
+                        Err(e) => Response::Err(e.to_string()),
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -182,8 +214,8 @@ async fn put_one(state: &State, p: PutReq) -> Result<i64> {
     }
     let embedding = if p.embed {
         state.ensure_embedder().await?;
-        let mut g = state.embedder.lock().await;
-        let e = g.as_mut().expect("embedder present");
+        let g = state.embedder.lock().await;
+        let e = g.as_ref().expect("embedder present");
         Some(e.embed_one(&p.text)?)
     } else { None };
     let mut req: PutRequest = p.into();
@@ -202,8 +234,8 @@ async fn put_batch(state: &State, batch: Vec<PutReq>) -> Result<Vec<i64>> {
     let embeddings = if any_embed {
         state.ensure_embedder().await?;
         let texts: Vec<String> = batch.iter().map(|r| r.text.clone()).collect();
-        let mut g = state.embedder.lock().await;
-        let e = g.as_mut().expect("embedder present");
+        let g = state.embedder.lock().await;
+        let e = g.as_ref().expect("embedder present");
         Some(e.embed_batch(&texts)?)
     } else { None };
     let reqs: Vec<PutRequest> = batch.into_iter().enumerate().map(|(i, p)| {
@@ -219,8 +251,8 @@ async fn put_batch(state: &State, batch: Vec<PutReq>) -> Result<Vec<i64>> {
 async fn search(state: &State, mode: SearchMode, q: &str, limit: usize, embed_query: bool) -> Result<Vec<synapse_core::Hit>> {
     let emb = if embed_query {
         state.ensure_embedder().await?;
-        let mut g = state.embedder.lock().await;
-        let e = g.as_mut().expect("embedder present");
+        let g = state.embedder.lock().await;
+        let e = g.as_ref().expect("embedder present");
         Some(e.embed_one(q)?)
     } else { None };
     let store = state.store.lock().await;
