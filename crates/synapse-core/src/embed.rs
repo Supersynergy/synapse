@@ -8,7 +8,7 @@ use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use redb::{Database, ReadableTableMetadata, TableDefinition};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 const EMB_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("emb_cache_v1");
