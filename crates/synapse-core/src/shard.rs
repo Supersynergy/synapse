@@ -155,22 +155,30 @@ fn query_shard(
     }
 }
 
+/// Merge hit lists from multiple shards via RRF.
+/// Uses URI as the dedup key when available, otherwise falls back to per-list
+/// rank-indexed unique keys so hits from different shards never collide.
 fn rrf_merge(lists: Vec<Vec<Hit>>, limit: usize) -> Vec<Hit> {
     use std::collections::HashMap;
     let k = 60.0f64;
-    let mut scores: HashMap<i64, f64> = HashMap::new();
-    let mut hits_map: HashMap<i64, Hit> = HashMap::new();
-    for list in &lists {
+    // Key: URI string if present, else "shard{list_idx}:id{id}"
+    let mut scores: HashMap<String, f64> = HashMap::new();
+    let mut hits_map: HashMap<String, Hit> = HashMap::new();
+    for (list_idx, list) in lists.iter().enumerate() {
         for (rank, hit) in list.iter().enumerate() {
+            let key = hit
+                .uri
+                .clone()
+                .unwrap_or_else(|| format!("shard{}:id{}", list_idx, hit.id));
             let rrf = 1.0 / (k + rank as f64 + 1.0);
-            *scores.entry(hit.id).or_default() += rrf;
-            hits_map.entry(hit.id).or_insert_with(|| hit.clone());
+            *scores.entry(key.clone()).or_default() += rrf;
+            hits_map.entry(key).or_insert_with(|| hit.clone());
         }
     }
     let mut merged: Vec<Hit> = hits_map
-        .into_values()
-        .map(|mut h| {
-            h.score = scores[&h.id];
+        .into_iter()
+        .map(|(key, mut h)| {
+            h.score = scores[&key];
             h
         })
         .collect();
@@ -189,20 +197,20 @@ pub fn split(
         .map_err(|e| Error::Other(format!("create out_dir: {e}")))?;
 
     let store = Store::open(source_db)?;
-    let (ids, texts, embeddings) = load_all_docs_with_embeddings(&store)?;
+    let doc_rows = load_all_docs_with_embeddings(&store)?;
 
-    if embeddings.is_empty() {
+    if doc_rows.is_empty() {
         return Err(Error::Other("no embedded docs to shard".into()));
     }
 
     let k = n_shards.unwrap_or_else(|| {
-        let n = embeddings.len();
+        let n = doc_rows.len();
         (n / 5000).max(2).min(DEFAULT_CENTROIDS)
     });
 
     // Build ndarray matrix [n_docs x EMBED_DIM]
-    let n = embeddings.len();
-    let flat: Vec<f32> = embeddings.iter().flatten().copied().collect();
+    let n = doc_rows.len();
+    let flat: Vec<f32> = doc_rows.iter().flat_map(|r| r.emb.iter().copied()).collect();
     let matrix = Array2::from_shape_vec((n, EMBED_DIM), flat)
         .map_err(|e| Error::Other(format!("ndarray: {e}")))?;
 
@@ -250,17 +258,20 @@ pub fn split(
         let mut shard_reqs = Vec::new();
 
         for &doc_idx in doc_indices {
-            let text = &texts[doc_idx];
-            for token in text.split_whitespace() {
+            let row = &doc_rows[doc_idx];
+            for token in row.text.split_whitespace() {
                 bloom.insert(token);
             }
-            let emb = embeddings[doc_idx].clone();
+            let meta_json = row
+                .meta
+                .as_deref()
+                .and_then(|s| serde_json::from_str(s).ok());
             let req = crate::types::PutRequest {
-                uri: None,
-                title: None,
-                text: text.clone(),
-                meta: None,
-                embedding: Some(emb),
+                uri: row.uri.clone(),
+                title: row.title.clone(),
+                text: row.text.clone(),
+                meta: meta_json,
+                embedding: Some(row.emb.clone()),
             };
             shard_reqs.push(req);
         }
@@ -284,39 +295,42 @@ pub fn split(
         );
     }
 
-    let manifest = ShardManifest { shards: shard_metas };
-    let _ = ids; // suppress unused warning — ids kept for future use
-    Ok(manifest)
+    Ok(ShardManifest { shards: shard_metas })
 }
 
-fn load_all_docs_with_embeddings(
-    store: &Store,
-) -> Result<(Vec<i64>, Vec<String>, Vec<Vec<f32>>)> {
-    let mut ids = Vec::new();
-    let mut texts = Vec::new();
-    let mut embeddings = Vec::new();
+struct DocRow {
+    id: i64,
+    uri: Option<String>,
+    title: Option<String>,
+    text: String,
+    meta: Option<String>,
+    emb: Vec<f32>,
+}
 
+fn load_all_docs_with_embeddings(store: &Store) -> Result<Vec<DocRow>> {
+    let mut rows_out = Vec::new();
     let mut stmt = store.conn.prepare(
-        "SELECT d.id, d.text, v.embedding FROM docs d
+        "SELECT d.id, d.uri, d.title, d.text, d.meta, v.embedding FROM docs d
          JOIN docs_vec v ON v.id = d.id
          ORDER BY d.id",
     )?;
     let mut rows = stmt.query([])?;
     while let Some(row) = rows.next()? {
         let id: i64 = row.get(0)?;
-        let text: String = row.get(1)?;
-        let bytes: Vec<u8> = row.get(2)?;
+        let uri: Option<String> = row.get(1)?;
+        let title: Option<String> = row.get(2)?;
+        let text: String = row.get(3)?;
+        let meta: Option<String> = row.get(4)?;
+        let bytes: Vec<u8> = row.get(5)?;
         if bytes.len() == EMBED_DIM * 4 {
             let emb: Vec<f32> = bytes
                 .chunks_exact(4)
                 .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
                 .collect();
-            ids.push(id);
-            texts.push(text);
-            embeddings.push(emb);
+            rows_out.push(DocRow { id, uri, title, text, meta, emb });
         }
     }
-    Ok((ids, texts, embeddings))
+    Ok(rows_out)
 }
 
 fn cosine_sim(a: &[f32; EMBED_DIM], b: &[f32; EMBED_DIM]) -> f32 {
@@ -416,33 +430,39 @@ mod tests {
         let manifest_path = shard_dir.join("brain.shards.toml");
         manifest.save(&manifest_path).unwrap();
 
-        // Full-scan baseline: all doc ids
-        let baseline_ids: std::collections::HashSet<i64> = {
+        // Full-scan baseline: all doc URIs returned for "document" query
+        let baseline_uris: std::collections::HashSet<String> = {
             let store = Store::open(&db_path).unwrap();
             let q_emb = make_seeded_embedding(5);
-            let hits = store.search("document", SearchMode::Hybrid, Some(&q_emb), n_docs).unwrap();
-            hits.iter().map(|h| h.id).collect()
+            let hits = store
+                .search("document", SearchMode::Hybrid, Some(&q_emb), n_docs)
+                .unwrap();
+            hits.iter().filter_map(|h| h.uri.clone()).collect()
         };
 
-        // Shard query
+        // Shard query (IDs differ per shard — match on URI)
         let manager = ShardManager::open(manifest_path).unwrap();
         let q_emb_arr: [f32; EMBED_DIM] = make_seeded_embedding(5).try_into().unwrap();
-        let shard_hits = manager.query("document", &q_emb_arr, SearchMode::Hybrid, n_docs).unwrap();
-        let shard_ids: std::collections::HashSet<i64> = shard_hits.iter().map(|h| h.id).collect();
+        // Request more hits than n_docs to account for per-shard limits
+        let shard_hits = manager
+            .query("document", &q_emb_arr, SearchMode::Hybrid, n_docs * 4)
+            .unwrap();
+        let shard_uris: std::collections::HashSet<String> =
+            shard_hits.iter().filter_map(|h| h.uri.clone()).collect();
 
-        // Recall: shard results should contain ≥95% of baseline
-        let intersection = baseline_ids.intersection(&shard_ids).count();
-        let recall = if baseline_ids.is_empty() {
+        // Recall: shard results should contain ≥95% of baseline URIs
+        let intersection = baseline_uris.intersection(&shard_uris).count();
+        let recall = if baseline_uris.is_empty() {
             1.0
         } else {
-            intersection as f64 / baseline_ids.len() as f64
+            intersection as f64 / baseline_uris.len() as f64
         };
         assert!(
             recall >= 0.95,
             "recall={:.2} < 0.95 (baseline={} shard={})",
             recall,
-            baseline_ids.len(),
-            shard_ids.len()
+            baseline_uris.len(),
+            shard_uris.len()
         );
     }
 }
