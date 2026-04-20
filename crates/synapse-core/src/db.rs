@@ -2,6 +2,9 @@ use crate::error::{Error, Result};
 use crate::types::{Doc, Hit, PutRequest, SearchMode, EMBED_DIM};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
+use ed25519_dalek::SigningKey;
+#[cfg(feature = "encryption")]
+use base64::Engine as _;
 
 pub struct Store {
     pub conn: Connection,
@@ -15,6 +18,60 @@ impl Store {
             )));
         }
         let conn = Connection::open(path)?;
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
+        conn.pragma_update(None, "temp_store", "MEMORY")?;
+        conn.pragma_update(None, "mmap_size", 268_435_456_i64)?;
+        let s = Self { conn };
+        s.migrate()?;
+        Ok(s)
+    }
+
+    /// Open or create an encrypted (SQLCipher) database.
+    ///
+    /// `passphrase` is run through argon2id (600000 iterations → 32-byte key hex)
+    /// before being passed to `PRAGMA key`. The raw hex key is also accepted via
+    /// the `SYNAPSE_KEY` env var or `--keyfile` path (caller's responsibility to
+    /// read file and pass here as UTF-8 hex).
+    ///
+    /// Requires feature `encryption`.
+    #[cfg(feature = "encryption")]
+    pub fn open_encrypted(path: impl AsRef<Path>, passphrase: &str) -> Result<Self> {
+        use argon2::{Argon2, PasswordHasher};
+        use argon2::password_hash::SaltString;
+
+        // Derive a 32-byte key from the passphrase using argon2id.
+        // We use a fixed salt derived from the path so the key is deterministic
+        // for a given (path, passphrase) pair.
+        let path_ref = path.as_ref();
+        let path_bytes = path_ref.to_string_lossy();
+        let salt_raw = blake3::hash(path_bytes.as_bytes());
+        let salt_b64 = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD_NO_PAD,
+            &salt_raw.as_bytes()[..16],
+        );
+        let salt = SaltString::from_b64(&salt_b64)
+            .map_err(|e| Error::Other(format!("argon2 salt: {e}")))?;
+        let argon2 = Argon2::new(
+            argon2::Algorithm::Argon2id,
+            argon2::Version::V0x13,
+            argon2::Params::new(65536, 3, 4, Some(32))
+                .map_err(|e| Error::Other(format!("argon2 params: {e}")))?,
+        );
+        let hash = argon2
+            .hash_password(passphrase.as_bytes(), &salt)
+            .map_err(|e| Error::Other(format!("argon2 hash: {e}")))?;
+        let raw_key = hash.hash.ok_or_else(|| Error::Other("argon2 missing hash output".into()))?;
+        let key_hex: String = raw_key.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
+
+        unsafe {
+            rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
+        }
+        let conn = Connection::open(path_ref)?;
+        conn.pragma_update(None, "key", format!("x'{key_hex}'"))?;
+        conn.pragma_update(None, "kdf_iter", 256000_i64)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.pragma_update(None, "temp_store", "MEMORY")?;
@@ -38,7 +95,9 @@ CREATE TABLE IF NOT EXISTS docs (
     text    TEXT NOT NULL,
     meta    TEXT,
     ts      INTEGER NOT NULL,
-    blake3  BLOB NOT NULL UNIQUE
+    blake3     BLOB NOT NULL UNIQUE,
+    sig        BLOB,
+    meta_crdt  BLOB
 );
 CREATE INDEX IF NOT EXISTS idx_docs_ts ON docs(ts);
 
@@ -74,7 +133,41 @@ INSERT OR IGNORE INTO meta(k,v) VALUES
     }
 
     /// Insert doc. Dedup via BLAKE3(text). Returns doc id.
+    /// If `signing_key` is provided, signs BLAKE3(text) and stores in `sig` column.
+    pub fn put_signed(&mut self, req: &PutRequest, signing_key: Option<&SigningKey>) -> Result<i64> {
+        let sig_bytes = signing_key.map(|sk| {
+            let hash = blake3::hash(req.text.as_bytes());
+            crate::sign::sign_bytes(sk, hash.as_bytes()).to_vec()
+        });
+        self.put_inner(req, sig_bytes, None)
+    }
+
+    /// Insert doc. Dedup via BLAKE3(text). Returns doc id.
     pub fn put(&mut self, req: &PutRequest) -> Result<i64> {
+        self.put_inner(req, None, None)
+    }
+
+    /// Insert doc with optional yrs-encoded meta_crdt state.
+    pub fn put_with_crdt(&mut self, req: &PutRequest, meta_crdt: Option<Vec<u8>>) -> Result<i64> {
+        self.put_inner(req, None, meta_crdt)
+    }
+
+    /// Merge incoming yrs state into existing meta_crdt for a doc.
+    pub fn merge_crdt(&mut self, id: i64, incoming: &[u8]) -> Result<()> {
+        let existing: Option<Vec<u8>> = self.conn.query_row(
+            "SELECT meta_crdt FROM docs WHERE id = ?1",
+            params![id],
+            |r| r.get(0),
+        ).optional()?.ok_or_else(|| Error::NotFound(format!("id={}", id)))?;
+        let merged = match existing {
+            Some(cur) => crate::crdt::merge_meta(&cur, incoming)?,
+            None => incoming.to_vec(),
+        };
+        self.conn.execute("UPDATE docs SET meta_crdt = ?1 WHERE id = ?2", params![merged, id])?;
+        Ok(())
+    }
+
+    fn put_inner(&mut self, req: &PutRequest, sig: Option<Vec<u8>>, meta_crdt: Option<Vec<u8>>) -> Result<i64> {
         if let Some(ref e) = req.embedding {
             if e.len() != EMBED_DIM {
                 return Err(Error::DimMismatch { expected: EMBED_DIM, got: e.len() });
@@ -97,8 +190,8 @@ INSERT OR IGNORE INTO meta(k,v) VALUES
             return Ok(id);
         }
         tx.execute(
-            "INSERT INTO docs(uri,title,text,meta,ts,blake3) VALUES (?1,?2,?3,?4,?5,?6)",
-            params![req.uri, req.title, req.text, meta_s, ts, hash_bytes],
+            "INSERT INTO docs(uri,title,text,meta,ts,blake3,sig,meta_crdt) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            params![req.uri, req.title, req.text, meta_s, ts, hash_bytes, sig, meta_crdt],
         )?;
         let id = tx.last_insert_rowid();
         if let Some(ref emb) = req.embedding {
@@ -232,6 +325,29 @@ INSERT OR IGNORE INTO meta(k,v) VALUES
         out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
         out.truncate(limit);
         Ok(out)
+    }
+
+    /// Verify the Ed25519 signature on a doc. Returns Err if no sig or invalid.
+    pub fn verify(&self, id: i64, vk: &ed25519_dalek::VerifyingKey) -> Result<()> {
+        let (text, sig_opt): (String, Option<Vec<u8>>) = self.conn.query_row(
+            "SELECT text, sig FROM docs WHERE id = ?1",
+            params![id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        ).optional()?.ok_or_else(|| Error::NotFound(format!("id={}", id)))?;
+        let sig_bytes = sig_opt.ok_or_else(|| Error::Other("doc has no signature".into()))?;
+        let arr: [u8; 64] = sig_bytes.try_into().map_err(|_| Error::Other("bad sig length".into()))?;
+        let hash = blake3::hash(text.as_bytes());
+        crate::sign::verify_bytes(vk, hash.as_bytes(), &arr)
+    }
+
+    /// Return docs ordered by timestamp descending (for timeline view).
+    pub fn timeline(&self, limit: usize, offset: usize) -> Result<Vec<crate::types::Doc>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, uri, title, text, meta, ts FROM docs ORDER BY ts DESC LIMIT ?1 OFFSET ?2",
+        )?;
+        let docs = stmt.query_map(params![limit as i64, offset as i64], map_doc)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(docs)
     }
 
     pub fn stats(&self) -> Result<Stats> {

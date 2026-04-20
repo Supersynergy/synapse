@@ -1,7 +1,11 @@
 //! synapse-core: single-file memory store on SQLite+FTS5+sqlite-vec.
 
+pub mod crdt;
 pub mod db;
+pub mod federate;
 pub mod error;
+pub mod shard;
+pub mod sign;
 pub mod snap;
 pub mod types;
 
