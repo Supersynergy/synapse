@@ -1,17 +1,12 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="Synapse — one file. Your AI's entire memory. 22µs kNN · 23µs BM25 · 0.69ms cold open." width="100%"/>
+<img src="assets/banner.svg" alt="Synapse — one file. Your AI's entire memory." width="100%"/>
 
-<sub>Criterion-reproducible numbers: `cargo bench -p synapse-core --features full`. Recall eval on LoCoMo / LongMemEval lands in v0.4 — see [`docs/EVAL-HARNESS.md`](docs/EVAL-HARNESS.md).</sub>
+### Your AI finally remembers you. Everything. Forever.
 
-### One file. Your AI's entire memory.
+One file on disk. Drop it in your project. Your AI picks up where you left off — last week, last month, last laptop.
 
-Kill Qdrant + Redis + your Python venv. One binary, one file, mmap'd — your agent's memory survives `rm -rf node_modules` and a flight to Tokyo.
-
-`Rust` · `MCP-native` · `MIT` · **23 µs** BM25 · **22 µs** kNN · **0.69 ms** cold open
-
-[![CI](https://github.com/Supersynergy/synapse/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/Supersynergy/synapse/actions)
-[![Release](https://img.shields.io/github/v/tag/Supersynergy/synapse?label=release)](https://github.com/Supersynergy/synapse/releases)
+[![Release](https://img.shields.io/github/v/tag/Supersynergy/synapse?label=release&color=blueviolet)](https://github.com/Supersynergy/synapse/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Supersynergy/synapse?style=flat&color=ffcc00)](https://github.com/Supersynergy/synapse/stargazers)
 
@@ -19,24 +14,35 @@ Kill Qdrant + Redis + your Python venv. One binary, one file, mmap'd — your ag
 
 ---
 
-```text
-put → [ BM25 ∥ HNSW+PQ ∥ KG ] → fused rank → Ed25519-signed CRDT log → .synx
-```
+## What it feels like
+
+**Before Synapse**
+
+> "Hey Claude, we talked about the database migration yesterday. Remember?"
+>
+> *Claude has no memory of yesterday.*
+>
+> You paste 40 lines of context. Again. Third time this week.
+
+**After Synapse**
+
+> "Hey Claude, where did we land on the migration?"
+>
+> *"You chose Postgres over SurrealDB on Tuesday — the BSL license was the blocker. Draft spec is in `/specs/db-migration.md`."*
+
+---
+
+## Three lines of actual code
 
 ```bash
-# install — pinned to a release tag (crates.io publish queued for v1.0.1)
 cargo install --locked --git https://github.com/Supersynergy/synapse --tag v1.0.0 synapse-cli synapsed synapse-mcp
-
-# run
 synapsed -f ~/brain.db &
-
-# remember
-synapse put "we chose Rust because single-binary shipping matters"
-synapse search "why Rust?"            # 23 µs
-synapse snap ~/brain.brainpack        # signed, content-addressed, offline-verifiable
+synapse put "postgres chosen over surrealdb" && synapse search "database decision?"
 ```
 
-Wire into Claude Code — memory across every session:
+## Wire it into Claude Code in 30 seconds
+
+Add to `~/.claude/settings.json`:
 
 ```json
 { "mcpServers": { "synapse": {
@@ -44,6 +50,8 @@ Wire into Claude Code — memory across every session:
     "args": ["--sock", "/tmp/synapse.sock"]
   } } }
 ```
+
+Restart Claude. Your agent now has `put`, `search` and `snap` as native tools. Cursor, Cline, Continue, Aider — same config.
 
 ---
 
