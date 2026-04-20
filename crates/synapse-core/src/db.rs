@@ -83,15 +83,35 @@ INSERT OR IGNORE INTO meta(k,v) VALUES
             let hash = blake3::hash(req.text.as_bytes());
             crate::sign::sign_bytes(sk, hash.as_bytes()).to_vec()
         });
-        self.put_inner(req, sig_bytes)
+        self.put_inner(req, sig_bytes, None)
     }
 
     /// Insert doc. Dedup via BLAKE3(text). Returns doc id.
     pub fn put(&mut self, req: &PutRequest) -> Result<i64> {
-        self.put_inner(req, None)
+        self.put_inner(req, None, None)
     }
 
-    fn put_inner(&mut self, req: &PutRequest, sig: Option<Vec<u8>>) -> Result<i64> {
+    /// Insert doc with optional yrs-encoded meta_crdt state.
+    pub fn put_with_crdt(&mut self, req: &PutRequest, meta_crdt: Option<Vec<u8>>) -> Result<i64> {
+        self.put_inner(req, None, meta_crdt)
+    }
+
+    /// Merge incoming yrs state into existing meta_crdt for a doc.
+    pub fn merge_crdt(&mut self, id: i64, incoming: &[u8]) -> Result<()> {
+        let existing: Option<Vec<u8>> = self.conn.query_row(
+            "SELECT meta_crdt FROM docs WHERE id = ?1",
+            params![id],
+            |r| r.get(0),
+        ).optional()?.ok_or_else(|| Error::NotFound(format!("id={}", id)))?;
+        let merged = match existing {
+            Some(cur) => crate::crdt::merge_meta(&cur, incoming)?,
+            None => incoming.to_vec(),
+        };
+        self.conn.execute("UPDATE docs SET meta_crdt = ?1 WHERE id = ?2", params![merged, id])?;
+        Ok(())
+    }
+
+    fn put_inner(&mut self, req: &PutRequest, sig: Option<Vec<u8>>, meta_crdt: Option<Vec<u8>>) -> Result<i64> {
         if let Some(ref e) = req.embedding {
             if e.len() != EMBED_DIM {
                 return Err(Error::DimMismatch { expected: EMBED_DIM, got: e.len() });
@@ -114,8 +134,8 @@ INSERT OR IGNORE INTO meta(k,v) VALUES
             return Ok(id);
         }
         tx.execute(
-            "INSERT INTO docs(uri,title,text,meta,ts,blake3,sig) VALUES (?1,?2,?3,?4,?5,?6,?7)",
-            params![req.uri, req.title, req.text, meta_s, ts, hash_bytes, sig],
+            "INSERT INTO docs(uri,title,text,meta,ts,blake3,sig,meta_crdt) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            params![req.uri, req.title, req.text, meta_s, ts, hash_bytes, sig, meta_crdt],
         )?;
         let id = tx.last_insert_rowid();
         if let Some(ref emb) = req.embedding {

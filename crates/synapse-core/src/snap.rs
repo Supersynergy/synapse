@@ -2,7 +2,7 @@
 
 use crate::error::{Error, Result};
 use ed25519_dalek::{SigningKey, VerifyingKey};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension, params};
 use std::path::Path;
 
 const MAGIC: &[u8; 4] = b"BPK1";
@@ -113,12 +113,100 @@ pub fn export(db_path: impl AsRef<Path>, out: impl AsRef<Path>, level: i32) -> R
     Ok(())
 }
 
-/// Restore a .brainpack into a fresh db file at `out`.
-pub fn import(pack: impl AsRef<Path>, out: impl AsRef<Path>) -> Result<()> {
-    let raw = std::fs::read(pack)?;
-    if &raw[0..4] != MAGIC {
-        return Err(crate::Error::Other("bad magic".into()));
+/// Merge two brainpacks by URI-matching docs and merging meta_crdt per doc.
+/// Writes a new brainpack to `out_pack`.
+pub fn merge_packs(
+    pack_a: impl AsRef<Path>,
+    pack_b: impl AsRef<Path>,
+    out_pack: impl AsRef<Path>,
+    level: i32,
+) -> Result<()> {
+    let db_a = tempfile::NamedTempFile::new()?;
+    let db_b = tempfile::NamedTempFile::new()?;
+    let db_out = tempfile::NamedTempFile::new()?;
+    import_magic(&pack_a, db_a.path())?;
+    import_magic(&pack_b, db_b.path())?;
+
+    // Copy A as base
+    {
+        let src = Connection::open(db_a.path())?;
+        let mut dst = Connection::open(db_out.path())?;
+        let backup = rusqlite::backup::Backup::new(&src, &mut dst)?;
+        backup.run_to_completion(128, std::time::Duration::from_millis(0), None)?;
     }
+
+    // Merge B docs into out: match by URI, merge meta_crdt
+    let conn_b = Connection::open(db_b.path())?;
+    let mut conn_out = Connection::open(db_out.path())?;
+
+    let mut stmt = conn_b.prepare(
+        "SELECT uri, title, text, meta, ts, blake3, sig, meta_crdt FROM docs"
+    )?;
+    let rows: Vec<(Option<String>, Option<String>, String, Option<String>, i64, Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>)> = stmt.query_map([], |r| {
+        Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?))
+    })?.collect::<rusqlite::Result<_>>()?;
+
+    let tx = conn_out.transaction()?;
+    for (uri, title, text, meta, ts, blake3, sig, crdt_b) in rows {
+        let existing_id: Option<(i64, Option<Vec<u8>>)> = if let Some(ref u) = uri {
+            tx.query_row(
+                "SELECT id, meta_crdt FROM docs WHERE uri = ?1",
+                params![u],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            ).optional()?
+        } else {
+            tx.query_row(
+                "SELECT id, meta_crdt FROM docs WHERE blake3 = ?1",
+                params![blake3],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            ).optional()?
+        };
+
+        if let Some((id, crdt_a)) = existing_id {
+            if let Some(ref b_state) = crdt_b {
+                let merged: Vec<u8> = match crdt_a {
+                    Some(ref a_state) => crate::crdt::merge_meta(a_state, b_state)?,
+                    None => b_state.clone(),
+                };
+                tx.execute("UPDATE docs SET meta_crdt = ?1 WHERE id = ?2", params![merged, id])?;
+            }
+        } else {
+            tx.execute(
+                "INSERT OR IGNORE INTO docs(uri,title,text,meta,ts,blake3,sig,meta_crdt) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+                params![uri, title, text, meta, ts, blake3, sig, crdt_b],
+            )?;
+        }
+    }
+    tx.commit()?;
+    drop(conn_out);
+
+    export(db_out.path(), out_pack, level)
+}
+
+/// Import a brainpack ignoring file extension — uses magic bytes to determine format.
+pub fn import_magic(pack: impl AsRef<Path>, out: impl AsRef<Path>) -> Result<()> {
+    let raw = std::fs::read(pack.as_ref())?;
+    if raw.len() < 5 {
+        return Err(crate::Error::Other("file too short".into()));
+    }
+    if &raw[0..4] != MAGIC {
+        return Err(crate::Error::Other(format!(
+            "bad magic — expected BPK1, got {:?}. Extension is ignored; content determines format.",
+            &raw[0..4]
+        )));
+    }
+    if raw[4] == VERSION_SIGNED {
+        // signed pack: just decompress body (skip sig verification for raw restore)
+        let body = &raw[49..raw.len() - 96];
+        let data = zstd::decode_all(body)?;
+        std::fs::write(out, data)?;
+        Ok(())
+    } else {
+        import_raw(&raw, out)
+    }
+}
+
+fn import_raw(raw: &[u8], out: impl AsRef<Path>) -> Result<()> {
     let _version = raw[4];
     let _level = u32::from_le_bytes(raw[5..9].try_into().unwrap());
     let raw_len = u64::from_le_bytes(raw[9..17].try_into().unwrap()) as usize;
@@ -134,6 +222,13 @@ pub fn import(pack: impl AsRef<Path>, out: impl AsRef<Path>) -> Result<()> {
     }
     std::fs::write(out, data)?;
     Ok(())
+}
+
+/// Restore a .brainpack into a fresh db file at `out`.
+/// Extension is ignored — content (magic bytes) determines format.
+/// Accepts .syn, .synapse, .brainpack, .bp — all equivalent.
+pub fn import(pack: impl AsRef<Path>, out: impl AsRef<Path>) -> Result<()> {
+    import_magic(pack, out)
 }
 
 /// Encrypt an existing .brainpack file with age passphrase. Writes `.brainpack.age`.

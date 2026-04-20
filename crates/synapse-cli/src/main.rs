@@ -55,7 +55,16 @@ enum Cmd {
     /// Export to .brainpack
     Snap { out: PathBuf, #[arg(long, default_value_t = 3)] level: i32 },
     /// Import a .brainpack into this file
+    /// (extension doesn't matter, content does — .syn/.synapse/.brainpack/.bp all accepted)
     Restore { pack: PathBuf },
+    /// Merge two brainpacks by URI-matching docs, CRDT-merging meta_crdt per doc
+    /// (extension doesn't matter, content does — .syn/.synapse/.brainpack/.bp all accepted)
+    Merge {
+        file_a: PathBuf,
+        file_b: PathBuf,
+        #[arg(short = 'o', long)] out: PathBuf,
+        #[arg(long, default_value_t = 3)] level: i32,
+    },
 }
 
 fn main() -> Result<()> {
@@ -139,6 +148,10 @@ fn main() -> Result<()> {
         Cmd::Restore { pack } => {
             snap::import(&pack, &cli.file)?;
             println!("ok restore {}", cli.file.display());
+        }
+        Cmd::Merge { file_a, file_b, out, level } => {
+            snap::merge_packs(&file_a, &file_b, &out, level)?;
+            println!("ok merge {}", out.display());
         }
     }
     Ok(())
