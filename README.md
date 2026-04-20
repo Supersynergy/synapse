@@ -61,20 +61,44 @@ Full 50-usecase matrix + CatBoost-picked defaults: [`bench/RESULTS-V1.md`](bench
 | sign + verify manifest | **25 µs each** | `ed25519-dalek` stock | parity |
 | pack → ship → verify → mmap | **12 ms end-to-end** | tar + cosign + sqlite ≈ 340 ms | **28×** |
 
+## What Synapse makes obsolete
+
+Every row below is a real stack a production team is paying for today. Synapse replaces the whole row with **one file and one binary**:
+
+| Today | Synapse v1.0 |
+|-------|-----|
+| Qdrant / Pinecone / Chroma + Postgres + Redis + a Python embedder + Docker compose | one `synapsed` binary + `brain.synx` |
+| memvid (MV2) — 200 ms per CLI call, 12 400 ms lex query | 5.7 µs RPC, 23 µs BM25 query |
+| Meilisearch server + vector plugin + nightly reindex | Tantivy + HNSW built into the same file |
+| mem0 + Zep + Letta orchestration loops | put / search / snap — three verbs, same file |
+| LangChain session-store hacks around SQLite | first-class memory scopes (user / session / project / global) |
+| Handcrafted diff-based memory versioning | Supersedes / References / Contradicts / Summarises edges |
+| `rsync` + GPG + separate checksum step | `synapse snap` → Ed25519-signed `.brainpack` |
+| cluster-mode Automerge server for multi-writer docs | single-file CRDT sync, no server |
+| Bloomberg-style paid data API | content-addressed `.brainpack` subscriptions, you own the format |
+
+No RAG framework in production has all of the above in one process. That's the gap.
+
 ## Why one file?
 
 - **No daemons to supervise.** `synapsed` is optional; the CLI speaks to the file directly.
-- **`cp brain.db` = backup.** `git diff brain.brainpack` = audit. `scp` = deploy.
+- **`cp brain.synx` = backup.** `git diff brain.brainpack` = audit. `scp` = deploy.
 - **Offline-first by default.** Sign with Ed25519, verify on any peer, no trust server.
+- **Portable forever.** `.synx` is a CC0 spec — any language, any runtime, no asking.
+- **Indistinguishable from in-process state.** 5.7 µs RPC is below every perceptual threshold.
 
-## What actually lives in the file
+## Top features
 
-- **BM25 full-text** (Tantivy) and **HNSW + int8 vector** in the same index
-- **Temporal knowledge graph** — `Supersedes`, `References`, `Contradicts`, `Summarises`
-- **Memory scopes** — Global / User / Session / Project
-- **CRDT sync** (Automerge) for multi-writer without a server
-- **Ed25519-signed `.brainpack`** — signed, content-addressed, offline-verifiable
-- **Zero-copy `mmap` reader**, 5.7 µs RPC, BLAKE3 content-addressed chunks
+1. **Hybrid retrieval in one call** — BM25 (Tantivy) ∥ HNSW+PQ vectors ∥ KG edges, fused with reciprocal-rank.
+2. **Temporal knowledge graph built in** — `Supersedes`, `References`, `Contradicts`, `Summarises`, with valid-at windows.
+3. **Memory scopes as a primitive** — Global / User / Session / Project, indexed natively, not a namespace hack.
+4. **CRDT multi-writer sync** — Automerge under the hood, deterministic + commutative merges, no server.
+5. **Ed25519-signed `.brainpack`** — sign with key rotation, verify on any peer, ship memory as an artefact.
+6. **Zero-copy `mmap` reader** — 0.69 ms cold open on 10 k docs, raw slice in 2 µs.
+7. **BLAKE3 content-addressed chunks** — dedup for free, every blob hash-verifiable.
+8. **MCP-native** — Claude Code, Cursor, Cline, Continue, Aider all accept one JSON block.
+9. **Rust core, MIT code, CC0 format** — no vendor, no lock-in, no BSL.
+10. **One binary, one file, no servers.** Indistinguishable from an in-process library until you want replication — then the CRDT is already there.
 
 ## Compared to the field
 
