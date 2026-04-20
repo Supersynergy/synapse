@@ -11,6 +11,7 @@
 **The open standard for agent memory.** Rust core. SQLite + FTS5 + sqlite-vec. MCP-native. MIT.
 
 [![CI](https://github.com/Supersynergy/synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse/actions)
+[![E2E tested](https://img.shields.io/badge/E2E-20%2F20%20PASS-brightgreen)](bench/e2e_smoke.sh)
 [![Release](https://img.shields.io/badge/release-v0.2.0-blueviolet)](https://github.com/Supersynergy/synapse/releases/tag/v0.2.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.91+-orange.svg)]()
