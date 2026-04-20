@@ -70,6 +70,12 @@ async fn main() -> Result<()> {
         .init();
     let cli = Cli::parse();
     if let Some(p) = cli.file.parent() { std::fs::create_dir_all(p).ok(); }
+
+    // Install Prometheus metrics recorder and spawn HTTP server
+    let metrics_handle = metrics::MetricsHandle::install()?;
+    let metrics_addr = cli.metrics_addr;
+    tokio::spawn(metrics::serve(metrics_handle.handle.clone(), metrics_addr));
+
     let store = Store::open(&cli.file).context("open store")?;
     let cache_path = cli.emb_cache.clone().unwrap_or_else(|| {
         let mut p = cli.file.clone();
@@ -136,20 +142,43 @@ async fn handle_conn(mut stream: UnixStream, state: Arc<State>) -> Result<()> {
 async fn dispatch(state: &State, req: Request) -> Response {
     match req {
         Request::Ping => Response::Pong,
-        Request::Put(p) => match put_one(state, p).await {
-            Ok(id) => Response::Id(id),
-            Err(e) => Response::Err(e.to_string()),
+        Request::Put(p) => {
+            let t0 = Instant::now();
+            let result = put_one(state, p).await;
+            metrics::record_put(t0.elapsed());
+            match result {
+                Ok(id) => Response::Id(id),
+                Err(e) => Response::Err(e.to_string()),
+            }
         },
-        Request::PutBatch(batch) => match put_batch(state, batch).await {
-            Ok(ids) => Response::Ids(ids),
-            Err(e) => Response::Err(e.to_string()),
+        Request::PutBatch(batch) => {
+            let t0 = Instant::now();
+            let result = put_batch(state, batch).await;
+            metrics::record_put(t0.elapsed());
+            match result {
+                Ok(ids) => Response::Ids(ids),
+                Err(e) => Response::Err(e.to_string()),
+            }
         },
-        Request::Search { mode, q, limit, embed_query } => match search(state, mode, &q, limit, embed_query).await {
-            Ok(hits) => Response::Hits(hits),
-            Err(e) => Response::Err(e.to_string()),
+        Request::Search { mode, q, limit, embed_query } => {
+            let mode_str = match mode {
+                SearchMode::Lex => "lex",
+                SearchMode::Vec => "vec",
+                SearchMode::Hybrid => "hybrid",
+            };
+            let t0 = Instant::now();
+            let result = search(state, mode, &q, limit, embed_query).await;
+            metrics::record_query(mode_str, t0.elapsed());
+            match result {
+                Ok(hits) => Response::Hits(hits),
+                Err(e) => Response::Err(e.to_string()),
+            }
         },
         Request::Stats => match state.store.lock().await.stats() {
-            Ok(s) => Response::Stats { docs: s.docs, vecs: s.vecs },
+            Ok(s) => {
+                metrics::set_doc_count(s.docs);
+                Response::Stats { docs: s.docs, vecs: s.vecs }
+            },
             Err(e) => Response::Err(e.to_string()),
         },
         Request::Snap { out, level } => {

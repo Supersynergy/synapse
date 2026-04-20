@@ -22,7 +22,7 @@ blake3 = "1"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 fastembed = "5"
 redb = "2"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
