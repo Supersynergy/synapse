@@ -6,11 +6,10 @@
     <string>com.synapse.turbo</string>
     <key>ProgramArguments</key>
     <array>
-        <!-- Adjust to your Python 3.12+ path with fastembed installed -->
         <string>/opt/homebrew/opt/python@3.12/bin/python3.12</string>
         <string>-W</string>
         <string>ignore</string>
-        <string>/Users/YOU/.local/bin/synapse-turbo</string>
+        <string>/Users/master/.claude/synapse-turbo.py</string>
         <string>daemon</string>
     </array>
     <key>RunAtLoad</key>
@@ -18,9 +17,9 @@
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/Users/YOU/.synapse/turbo-daemon.log</string>
+    <string>/Users/master/.synapse/turbo-daemon.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/YOU/.synapse/turbo-daemon.log</string>
+    <string>/Users/master/.synapse/turbo-daemon.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>OMP_NUM_THREADS</key>

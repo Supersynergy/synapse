@@ -97,19 +97,16 @@ Response:
 
 ## macOS auto-start (launchd)
 
-A template plist is provided. Edit the paths, then install:
+The plist is pre-configured for the default setup. Install:
 
 ```bash
-# 1. Edit com.synapse.turbo.plist — replace /Users/YOU with your home dir
-#    and adjust the Python path to where fastembed is installed
-
-# 2. Copy to LaunchAgents
+# Copy to LaunchAgents
 cp com.synapse.turbo.plist ~/Library/LaunchAgents/
 
-# 3. Load
+# Load
 launchctl load ~/Library/LaunchAgents/com.synapse.turbo.plist
 
-# 4. Verify
+# Verify
 curl -s "http://127.0.0.1:9477/hybrid?q=test&limit=1" | python -m json.tool
 ```
 
