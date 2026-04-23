@@ -7,7 +7,7 @@ All numbers measured on this hardware with our Phase 1 optimizations (NEON SIMD 
 ## Current Architecture: Single-File + Turbo Overlay
 
 ```
-synapse.db (SQLite)           turbo (in-memory)
+synapsedb.db (SQLite)           turbo (in-memory)
 +-----------+---------+       +------------------+
 | docs      | FTS5    |       | NdArraySearch    | ndarray f32 matrix
 | vec0      | vec_idx |       | QuantizedSearch  | int8 flat matrix
@@ -28,7 +28,7 @@ synapse.db (SQLite)           turbo (in-memory)
 ### Strengths
 | Property | Value |
 |----------|-------|
-| Atomic backup | `cp synapse.db synapse.db.bak` |
+| Atomic backup | `cp synapsedb.db synapsedb.db.bak` |
 | CRDT merge | Single source of truth, yrs document per row |
 | Ed25519 signatures | Inline per-row, verifiable offline |
 | ACID transactions | SQLite WAL mode, one writer |
@@ -112,7 +112,7 @@ brain/
 **Adopt multi-file only for the >50k scale path** via the existing `shard.rs` IVF system:
 
 ```
-<50k docs:  synapse.db + in-memory turbo (quantized i8)
+<50k docs:  synapsedb.db + in-memory turbo (quantized i8)
 >50k docs:  shard.rs splits into N shard SQLite files + IVF index
 >500k docs: Optional mmap vectors.bin per shard (Phase 3)
 ```
