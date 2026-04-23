@@ -12,7 +12,10 @@
 #[cfg(feature = "ollama")]
 pub mod ollama_embedder;
 
+pub mod binary;
 pub mod hybrid_cache;
+pub mod matryoshka;
 pub mod ndarray_search;
 pub mod quantize;
+pub mod reranker;
 pub mod simd;

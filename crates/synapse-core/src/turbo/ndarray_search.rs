@@ -150,6 +150,21 @@ impl NdArraySearch {
         self.n_vectors == 0
     }
 
+    /// Build a Matryoshka funnel search index from this search index.
+    /// Two-phase search: coarse at low dim → refine at full dim.
+    pub fn to_matryoshka(
+        &self,
+        config: super::matryoshka::MatryoshkaConfig,
+    ) -> super::matryoshka::MatryoshkaSearch {
+        super::matryoshka::MatryoshkaSearch::from_matrix(&self.matrix, &self.ids, config)
+    }
+
+    /// Build a binary quantization index from this search index.
+    /// 32× compression for ultra-fast pre-filtering.
+    pub fn to_binary(&self, keep_f32: bool) -> super::binary::BinaryIndex {
+        super::binary::BinaryIndex::from_matrix(&self.matrix, &self.ids, keep_f32)
+    }
+
     /// Build a quantized (int8) index from this search index.
     /// Provides 4× memory reduction with ~95%+ recall@k.
     pub fn to_quantized(&self) -> super::quantize::QuantizedSearch {

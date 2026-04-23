@@ -7,6 +7,7 @@
 //!   cargo bench -p synapse-core --features turbo --bench turbo
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use synapse_core::turbo::matryoshka::MatryoshkaConfig;
 use synapse_core::turbo::ndarray_search::NdArraySearch;
 use synapse_core::turbo::simd;
 use synapse_core::types::EMBED_DIM;
@@ -42,6 +43,8 @@ fn bench_search_strategies(c: &mut Criterion) {
         let (tmp, store) = build_store(n);
         let nd_search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
         let quantized = nd_search.to_quantized();
+        let matryoshka = nd_search.to_matryoshka(MatryoshkaConfig::default());
+        let binary = nd_search.to_binary(true);
         let query = fake_emb(42);
         let k = 10;
 
@@ -89,6 +92,26 @@ fn bench_search_strategies(c: &mut Criterion) {
                 })
             },
         );
+
+        group.bench_with_input(
+            BenchmarkId::new("matryoshka-funnel", n),
+            &n,
+            |b, _| {
+                b.iter(|| {
+                    let _ = matryoshka.funnel_search(black_box(&query), black_box(k));
+                })
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("binary-twophase", n),
+            &n,
+            |b, _| {
+                b.iter(|| {
+                    let _ = binary.search_twophase(black_box(&query), black_box(k), 20);
+                })
+            },
+        );
     }
 
     group.finish();
@@ -133,6 +156,18 @@ fn bench_quantization(c: &mut Criterion) {
     group.bench_function("build-quantized-1k", |b| {
         b.iter(|| {
             let _ = nd_search.to_quantized();
+        })
+    });
+
+    group.bench_function("build-matryoshka-1k", |b| {
+        b.iter(|| {
+            let _ = nd_search.to_matryoshka(MatryoshkaConfig::default());
+        })
+    });
+
+    group.bench_function("build-binary-1k", |b| {
+        b.iter(|| {
+            let _ = nd_search.to_binary(true);
         })
     });
 

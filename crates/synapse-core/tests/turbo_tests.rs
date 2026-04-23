@@ -11,8 +11,9 @@
 
 use synapse_core::turbo::hybrid_cache::HybridCache;
 use synapse_core::turbo::ndarray_search::{HybridSearch, NdArraySearch};
-use synapse_core::turbo::quantize::QuantizedSearch;
 use synapse_core::turbo::simd;
+use synapse_core::turbo::matryoshka::MatryoshkaConfig;
+use synapse_core::turbo::reranker::{MmrReranker, Reranker, RrfReranker, ScoredResult, WeightedScoreReranker};
 use synapse_core::types::EMBED_DIM;
 use synapse_core::{PutRequest, Store};
 
@@ -692,5 +693,271 @@ fn turbo_benchmark_f32_vs_simd_vs_quantized() {
         n * EMBED_DIM * 4 / 1024,
         quantized.memory_bytes() / 1024,
         quantized.compression_ratio()
+    );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 1c: Matryoshka funnel search tests
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn turbo_matryoshka_from_ndarray() {
+    let (tmp, _store) = build_test_store(100);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let matryoshka = search.to_matryoshka(MatryoshkaConfig::default());
+
+    assert_eq!(matryoshka.len(), 100);
+    let results = matryoshka.funnel_search(&fake_emb(50), 5);
+    assert_eq!(results.len(), 5);
+    assert_eq!(
+        results[0].0, 50,
+        "funnel search should find doc 50 first, got {}",
+        results[0].0
+    );
+}
+
+#[test]
+fn turbo_matryoshka_recall_vs_full_search() {
+    let n = 200;
+    let (tmp, _store) = build_test_store(n);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let matryoshka = search.to_matryoshka(MatryoshkaConfig {
+        coarse_dim: 96,
+        funnel_factor: 6,
+    });
+    let k = 10;
+
+    let seeds = [1u8, 25, 50, 100, 150];
+    let mut total_recall = 0.0;
+    for &seed in &seeds {
+        let query = fake_emb(seed);
+        let full_ids: Vec<i64> = matryoshka
+            .full_search(&query, k)
+            .iter()
+            .map(|(id, _)| *id)
+            .collect();
+        let funnel_ids: Vec<i64> = matryoshka
+            .funnel_search(&query, k)
+            .iter()
+            .map(|(id, _)| *id)
+            .collect();
+
+        let overlap = full_ids.iter().filter(|id| funnel_ids.contains(id)).count();
+        total_recall += overlap as f32 / k as f32;
+    }
+
+    let avg_recall = total_recall / seeds.len() as f32;
+    assert!(
+        avg_recall >= 0.7,
+        "avg matryoshka recall@{k} should be >= 0.7, got {avg_recall}"
+    );
+}
+
+#[test]
+fn turbo_matryoshka_faster_than_full() {
+    let n = 500;
+    let (tmp, _store) = build_test_store(n);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let matryoshka = search.to_matryoshka(MatryoshkaConfig::default());
+    let query = fake_emb(100);
+    let k = 10;
+    let iters = 200;
+
+    // Warmup
+    for _ in 0..5 {
+        let _ = matryoshka.full_search(&query, k);
+        let _ = matryoshka.funnel_search(&query, k);
+    }
+
+    let start = std::time::Instant::now();
+    for _ in 0..iters {
+        let _ = matryoshka.full_search(&query, k);
+    }
+    let full_us = start.elapsed().as_micros() as f64 / iters as f64;
+
+    let start = std::time::Instant::now();
+    for _ in 0..iters {
+        let _ = matryoshka.funnel_search(&query, k);
+    }
+    let funnel_us = start.elapsed().as_micros() as f64 / iters as f64;
+
+    eprintln!("\n=== Matryoshka Benchmark ({n} docs, {EMBED_DIM}-dim, k={k}) ===");
+    eprintln!("  Full search:   {full_us:.1}µs");
+    eprintln!("  Funnel search: {funnel_us:.1}µs");
+    eprintln!(
+        "  Speedup:       {:.1}×",
+        if funnel_us > 0.0 { full_us / funnel_us } else { 0.0 }
+    );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 1c: Binary quantization tests
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn turbo_binary_from_ndarray() {
+    let (tmp, _store) = build_test_store(100);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let binary = search.to_binary(true);
+
+    assert_eq!(binary.len(), 100);
+    let ratio = binary.compression_ratio();
+    assert!(ratio > 30.0, "binary compression should be ~32×, got {ratio}");
+}
+
+#[test]
+fn turbo_binary_search_finds_self() {
+    let (tmp, _store) = build_test_store(50);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let binary = search.to_binary(false);
+
+    let results = binary.search_binary(&fake_emb(25), 5);
+    assert_eq!(results.len(), 5);
+    assert_eq!(
+        results[0].0, 25,
+        "binary search should find doc 25 first"
+    );
+    assert_eq!(results[0].1, 0, "Hamming to self should be 0");
+}
+
+#[test]
+fn turbo_binary_twophase_recall() {
+    let n = 200;
+    let (tmp, _store) = build_test_store(n);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let binary = search.to_binary(true);
+    let k = 10;
+
+    let seeds = [1u8, 25, 50, 100, 150];
+    let mut total_recall = 0.0;
+    for &seed in &seeds {
+        let query = fake_emb(seed);
+        let f32_ids: Vec<i64> = search.search(&query, k).iter().map(|(id, _)| *id).collect();
+        let bq_ids: Vec<i64> = binary
+            .search_twophase(&query, k, 20)
+            .iter()
+            .map(|(id, _)| *id)
+            .collect();
+
+        let overlap = f32_ids.iter().filter(|id| bq_ids.contains(id)).count();
+        total_recall += overlap as f32 / k as f32;
+    }
+
+    let avg_recall = total_recall / seeds.len() as f32;
+    assert!(
+        avg_recall >= 0.6,
+        "avg binary two-phase recall@{k} should be >= 0.6, got {avg_recall}"
+    );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 2: Reranker integration tests
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn turbo_rrf_reranker_integration() {
+    let rrf = RrfReranker::default();
+    let fts = vec![
+        ScoredResult { id: 10, score: 5.0 },
+        ScoredResult { id: 20, score: 4.0 },
+        ScoredResult { id: 30, score: 3.0 },
+    ];
+    let vec_res = vec![
+        ScoredResult { id: 20, score: 0.95 },
+        ScoredResult { id: 10, score: 0.90 },
+        ScoredResult { id: 40, score: 0.85 },
+    ];
+
+    let fused = rrf.rerank(&[fts, vec_res], 5);
+    assert!(!fused.is_empty());
+    let top2: Vec<i64> = fused.iter().take(2).map(|r| r.id).collect();
+    assert!(top2.contains(&10) && top2.contains(&20));
+}
+
+#[test]
+fn turbo_weighted_score_reranker() {
+    let ws = WeightedScoreReranker::new(vec![0.8, 0.2]);
+    let fts = vec![
+        ScoredResult { id: 1, score: 10.0 },
+        ScoredResult { id: 2, score: 5.0 },
+    ];
+    let vec_res = vec![
+        ScoredResult { id: 3, score: 0.99 },
+        ScoredResult { id: 1, score: 0.50 },
+    ];
+
+    let fused = ws.rerank(&[fts, vec_res], 3);
+    assert!(!fused.is_empty());
+    assert_eq!(fused[0].id, 1, "doc in both sources should rank first");
+}
+
+#[test]
+fn turbo_mmr_diversity() {
+    let mmr = MmrReranker { lambda: 0.5 };
+    let emb1 = vec![1.0f32, 0.0, 0.0, 0.0];
+    let emb2 = vec![0.99, 0.01, 0.0, 0.0];
+    let emb3 = vec![0.0, 1.0, 0.0, 0.0];
+
+    let results: Vec<(i64, f64, &[f32])> = vec![
+        (1, 1.0, emb1.as_slice()),
+        (2, 0.95, emb2.as_slice()),
+        (3, 0.9, emb3.as_slice()),
+    ];
+
+    let reranked = mmr.rerank_with_embeddings(&results, 2);
+    assert_eq!(reranked.len(), 2);
+    assert_eq!(reranked[0].id, 1);
+    assert_eq!(reranked[1].id, 3, "MMR should prefer diverse doc");
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 2: Head-to-head ALL strategies benchmark
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn turbo_benchmark_all_strategies() {
+    let n = 500;
+    let (tmp, _store) = build_test_store(n);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let quantized = search.to_quantized();
+    let matryoshka = search.to_matryoshka(MatryoshkaConfig::default());
+    let binary = search.to_binary(true);
+    let query = fake_emb(100);
+    let k = 10;
+    let iters = 200;
+
+    // Warmup
+    for _ in 0..5 {
+        let _ = search.search(&query, k);
+        let _ = search.search_simd(&query, k);
+        let _ = quantized.search(&query, k);
+        let _ = matryoshka.funnel_search(&query, k);
+        let _ = binary.search_twophase(&query, k, 10);
+    }
+
+    let bench = |f: &dyn Fn()| -> f64 {
+        let start = std::time::Instant::now();
+        for _ in 0..iters {
+            f();
+        }
+        start.elapsed().as_micros() as f64 / iters as f64
+    };
+
+    let ndarray_us = bench(&|| { let _ = search.search(&query, k); });
+    let simd_us = bench(&|| { let _ = search.search_simd(&query, k); });
+    let quant_us = bench(&|| { let _ = quantized.search(&query, k); });
+    let funnel_us = bench(&|| { let _ = matryoshka.funnel_search(&query, k); });
+    let binary_us = bench(&|| { let _ = binary.search_twophase(&query, k, 10); });
+
+    eprintln!("\n=== ALL STRATEGIES ({n} docs, {EMBED_DIM}-dim, k={k}) ===");
+    eprintln!("  ndarray f32:        {ndarray_us:.1}µs (baseline)");
+    eprintln!("  SIMD f32:           {simd_us:.1}µs ({:.1}×)", ndarray_us / simd_us.max(0.1));
+    eprintln!("  quantized i8:       {quant_us:.1}µs ({:.1}×)", ndarray_us / quant_us.max(0.1));
+    eprintln!("  matryoshka funnel:  {funnel_us:.1}µs ({:.1}×)", ndarray_us / funnel_us.max(0.1));
+    eprintln!("  binary two-phase:   {binary_us:.1}µs ({:.1}×)", ndarray_us / binary_us.max(0.1));
+    eprintln!("  Memory: f32={}KB i8={}KB bin={}KB",
+        n * EMBED_DIM * 4 / 1024,
+        quantized.memory_bytes() / 1024,
+        binary.binary_memory_bytes() / 1024,
     );
 }

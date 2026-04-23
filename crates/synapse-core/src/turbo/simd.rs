@@ -112,7 +112,8 @@ unsafe fn dot_f32_neon(a: &[f32], b: &[f32]) -> f32 {
 }
 
 /// NEON i8 dot product: 16 elements per iteration.
-/// Uses vmull_s8 (8×i8→i16) then vpaddlq_s16 (pairwise i16→i32).
+/// Uses vmull_s8 (8×i8→i16) then vpadalq_s16 (fused pairwise-add-and-accumulate).
+/// Pattern validated from qdrant, RuVector, CoreNN production code.
 /// SAFETY: NEON is always available on aarch64 (part of base ISA).
 #[cfg(target_arch = "aarch64")]
 #[inline(always)]
@@ -134,11 +135,9 @@ unsafe fn dot_i8_neon(a: &[i8], b: &[i8]) -> i32 {
         // High 8 elements: i8 × i8 → i16
         let prod_hi = vmull_s8(vget_high_s8(va), vget_high_s8(vb));
 
-        // Pairwise widen i16 → i32 and accumulate
-        let wide_lo = vpaddlq_s16(prod_lo);
-        let wide_hi = vpaddlq_s16(prod_hi);
-        acc = vaddq_s32(acc, wide_lo);
-        acc = vaddq_s32(acc, wide_hi);
+        // Fused pairwise widen i16 → i32 and accumulate (one instruction instead of two)
+        acc = vpadalq_s16(acc, prod_lo);
+        acc = vpadalq_s16(acc, prod_hi);
     }
 
     // Horizontal reduction: i32x4 → i32
