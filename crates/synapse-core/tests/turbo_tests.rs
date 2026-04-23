@@ -107,8 +107,7 @@ fn turbo_ndarray_recall_at_k() {
     assert_eq!(search.len(), n);
 
     // Collect all embeddings for ground truth.
-    let embeddings: Vec<(i64, Vec<f32>)> =
-        (1..=n).map(|i| (i as i64, fake_emb(i as u8))).collect();
+    let embeddings: Vec<(i64, Vec<f32>)> = (1..=n).map(|i| (i as i64, fake_emb(i as u8))).collect();
 
     // Test recall@5 for multiple queries
     let test_queries = [7u8, 42, 99, 1, 50];
@@ -119,8 +118,7 @@ fn turbo_ndarray_recall_at_k() {
         let results: Vec<i64> = search.search(&query, k).iter().map(|(id, _)| *id).collect();
 
         // Count overlap
-        let recall: f32 =
-            results.iter().filter(|id| gt.contains(id)).count() as f32 / k as f32;
+        let recall: f32 = results.iter().filter(|id| gt.contains(id)).count() as f32 / k as f32;
         assert!(
             recall >= 1.0,
             "recall@{} for seed {} should be 1.0 (brute-force is exact), got {}",
@@ -138,7 +136,10 @@ fn turbo_ndarray_zero_vector_safe() {
     let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
     let zero = vec![0.0f32; EMBED_DIM];
     let results = search.search(&zero, 5);
-    assert!(results.is_empty(), "zero vector should return empty results");
+    assert!(
+        results.is_empty(),
+        "zero vector should return empty results"
+    );
 }
 
 #[test]
