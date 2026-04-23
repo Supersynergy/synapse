@@ -7,6 +7,8 @@
 //!
 //! Run: cargo test -p synapse-core --features turbo -- turbo
 
+#![cfg(feature = "turbo")]
+
 use synapse_core::turbo::hybrid_cache::HybridCache;
 use synapse_core::turbo::ndarray_search::{HybridSearch, NdArraySearch};
 use synapse_core::types::EMBED_DIM;
