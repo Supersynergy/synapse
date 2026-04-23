@@ -12,5 +12,5 @@
 #[cfg(feature = "ollama")]
 pub mod ollama_embedder;
 
-pub mod ndarray_search;
 pub mod hybrid_cache;
+pub mod ndarray_search;
