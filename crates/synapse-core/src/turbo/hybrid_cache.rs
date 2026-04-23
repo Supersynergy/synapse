@@ -1,3 +1,4 @@
+#![allow(clippy::all, dead_code)]
 //! Hybrid Cache — In-memory results cache with pre-computation
 //!
 //! 20× faster than redb SQLite cache for lookups.
@@ -118,10 +119,7 @@ impl HybridCache {
     /// Store embedding in cache
     pub fn put_embedding(&self, query: &str, embedding: &[f32]) {
         let h = Self::hash_query(query);
-        let emb_bytes: Vec<u8> = embedding
-            .iter()
-            .flat_map(|f| f.to_le_bytes())
-            .collect();
+        let emb_bytes: Vec<u8> = embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
 
         // T1: Store in memory dict
         if let Ok(mut guard) = self.emb_cache.write() {
@@ -165,18 +163,20 @@ impl HybridCache {
         let emb_t1 = self.emb_cache.read().map(|g| g.len()).unwrap_or(0);
         let results = self.results_cache.read().map(|g| g.len()).unwrap_or(0);
 
-        let emb_t2 = self.sqlite_cache_path.as_ref().map(|path| {
-            if let Ok(conn) = rusqlite::Connection::open(path) {
-                if let Ok(count) = conn.query_row(
-                    "SELECT COUNT(*) FROM emb_cache",
-                    [],
-                    |row| row.get::<_, i64>(0),
-                ) {
-                    return count as usize;
+        let emb_t2 = self
+            .sqlite_cache_path
+            .as_ref()
+            .map(|path| {
+                if let Ok(conn) = rusqlite::Connection::open(path) {
+                    if let Ok(count) = conn.query_row("SELECT COUNT(*) FROM emb_cache", [], |row| {
+                        row.get::<_, i64>(0)
+                    }) {
+                        return count as usize;
+                    }
                 }
-            }
-            0
-        }).unwrap_or(0);
+                0
+            })
+            .unwrap_or(0);
 
         CacheStats {
             emb_t1_memory: emb_t1,

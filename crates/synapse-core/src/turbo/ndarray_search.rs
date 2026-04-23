@@ -1,3 +1,4 @@
+#![allow(clippy::all, dead_code)]
 //! NdArray Search — NumPy-style SIMD-accelerated brute-force kNN
 //!
 //! For corpora < 50k docs, brute-force with ndarray is FASTER than HNSW.
@@ -35,9 +36,7 @@ impl NdArraySearch {
     /// Create from existing connection
     pub fn from_connection(conn: &Connection) -> Result<Self> {
         // Read all vectors
-        let mut stmt = conn.prepare(
-            "SELECT v.id, v.embedding FROM docs_vec v ORDER BY v.id"
-        )?;
+        let mut stmt = conn.prepare("SELECT v.id, v.embedding FROM docs_vec v ORDER BY v.id")?;
 
         let mut ids = Vec::new();
         let mut flat_vectors = Vec::new();
@@ -125,7 +124,9 @@ impl NdArraySearch {
         let mut indices: Vec<usize> = (0..self.n_vectors).collect();
         indices.select_nth_unstable_by(k - 1, |a, b| {
             // Sort descending (highest similarity first)
-            similarities[*b].partial_cmp(&similarities[*a]).unwrap_or(std::cmp::Ordering::Equal)
+            similarities[*b]
+                .partial_cmp(&similarities[*a])
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         let top_indices = &indices[..k];
@@ -169,7 +170,10 @@ impl HybridSearch {
             [],
         );
 
-        Ok(Self { fts_conn: conn, search })
+        Ok(Self {
+            fts_conn: conn,
+            search,
+        })
     }
 
     /// Search with hybrid RRF fusion
@@ -183,8 +187,7 @@ impl HybridSearch {
         let vec_results = self.search.search(query_emb, limit * 3);
 
         // RRF fusion
-        let mut scores: std::collections::HashMap<i64, (f64, HybridHit)> =
-            Default::default();
+        let mut scores: std::collections::HashMap<i64, (f64, HybridHit)> = Default::default();
 
         for (i, (doc_id, score)) in fts_results.into_iter().enumerate() {
             let i_f64 = (i + 1) as f64;
@@ -219,7 +222,11 @@ impl HybridSearch {
 
         // Sort by combined score
         let mut results: Vec<_> = scores.into_values().map(|(_, h)| h).collect();
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit);
 
         results

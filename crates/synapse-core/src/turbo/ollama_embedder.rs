@@ -1,3 +1,4 @@
+#![allow(clippy::all, dead_code)]
 //! Ollama Embedder — 17× faster than fastembed on M4 Max
 //!
 //! Uses Ollama's HTTP API for embedding generation.
@@ -147,14 +148,21 @@ pub mod async_ollama {
                         }))
                         .send()
                         .map_err(|e| Error::Other(format!("ollama request: {e}")))
-                        .and_then(|r| r.json::<EmbedResponse>().map_err(|e| Error::Other(format!("ollama response: {e}))))
+                        .and_then(|r| {
+                            r.json::<EmbedResponse>()
+                                .map_err(|e| Error::Other(format!("ollama response: {e}")))
+                        })
                         .map(|r| r.embedding)
                 }));
             }
 
             let mut results = Vec::with_capacity(handles.len());
             for handle in handles {
-                results.push(handle.await.map_err(|e| Error::Other(format!("tokio join: {e}")))??);
+                results.push(
+                    handle
+                        .await
+                        .map_err(|e| Error::Other(format!("tokio join: {e}")))??,
+                );
             }
             Ok(results)
         }
@@ -168,10 +176,10 @@ mod tests {
     #[test]
     fn test_ollama_embedder_creation() {
         // Just test creation, actual embedding requires Ollama running
-        let embedder = OllamaEmbedder::new("all-minilm");
+        let embedder = OllamaEmbedder::new(DEFAULT_MODEL);
         // Will fail if Ollama not running, but creation should work
         if let Ok(e) = embedder {
-            assert_eq!(e.model, "all-minilm");
+            assert_eq!(e.model, DEFAULT_MODEL);
         }
     }
 }

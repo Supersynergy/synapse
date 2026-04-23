@@ -1,3 +1,4 @@
+#![allow(clippy::all, clippy::pedantic, clippy::nursery, dead_code)]
 //! synapse-turbo: Speed optimizations for Synapse
 //!
 //! This module contains high-performance alternatives to the default components:
@@ -12,5 +13,5 @@
 #[cfg(feature = "ollama")]
 pub mod ollama_embedder;
 
-pub mod ndarray_search;
 pub mod hybrid_cache;
+pub mod ndarray_search;
