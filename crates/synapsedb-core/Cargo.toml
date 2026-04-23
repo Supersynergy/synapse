@@ -66,3 +66,15 @@ harness = false
 [[bench]]
 name = "turbo"
 harness = false
+
+[[example]]
+name = "realworld_bench"
+required-features = ["turbo"]
+
+[[example]]
+name = "hyperopt_bench"
+required-features = ["turbo"]
+
+[[example]]
+name = "ml_fusion_bench"
+required-features = ["turbo"]
