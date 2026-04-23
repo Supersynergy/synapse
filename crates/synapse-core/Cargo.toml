@@ -62,3 +62,7 @@ harness = false
 [[bench]]
 name = "vec"
 harness = false
+
+[[bench]]
+name = "turbo"
+harness = false

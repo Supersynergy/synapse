@@ -149,6 +149,50 @@ impl NdArraySearch {
     pub fn is_empty(&self) -> bool {
         self.n_vectors == 0
     }
+
+    /// Build a quantized (int8) index from this search index.
+    /// Provides 4× memory reduction with ~95%+ recall@k.
+    pub fn to_quantized(&self) -> super::quantize::QuantizedSearch {
+        super::quantize::QuantizedSearch::from_matrix(&self.matrix, &self.ids)
+    }
+
+    /// SIMD-accelerated search using hand-written NEON dot products.
+    /// Bypasses ndarray matmul overhead for lower latency on small-to-medium corpora.
+    pub fn search_simd(&self, query: &[f32], k: usize) -> Vec<(i64, f32)> {
+        if query.len() != self.dim {
+            return Vec::new();
+        }
+
+        let q_norm: f32 = query.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if q_norm < 1e-10 {
+            return Vec::new();
+        }
+        let q_normalized: Vec<f32> = query.iter().map(|x| x / q_norm).collect();
+
+        // Use SIMD batch dot product over the flat matrix
+        let flat = self.matrix.as_slice().unwrap();
+        let similarities =
+            super::simd::dot_batch_f32(flat, &q_normalized, self.dim, self.n_vectors);
+
+        let k = k.min(self.n_vectors);
+        if k == 0 {
+            return Vec::new();
+        }
+
+        let mut indices: Vec<usize> = (0..self.n_vectors).collect();
+        indices.select_nth_unstable_by(k - 1, |&a, &b| {
+            similarities[b]
+                .partial_cmp(&similarities[a])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut results: Vec<(i64, f32)> = indices[..k]
+            .iter()
+            .map(|&i| (self.ids[i], 1.0 - similarities[i]))
+            .collect();
+        results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        results
+    }
 }
 
 /// Hybrid search combining FTS5 + NdArraySearch with RRF fusion

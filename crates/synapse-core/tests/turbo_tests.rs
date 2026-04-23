@@ -11,6 +11,8 @@
 
 use synapse_core::turbo::hybrid_cache::HybridCache;
 use synapse_core::turbo::ndarray_search::{HybridSearch, NdArraySearch};
+use synapse_core::turbo::quantize::QuantizedSearch;
+use synapse_core::turbo::simd;
 use synapse_core::types::EMBED_DIM;
 use synapse_core::{PutRequest, Store};
 
@@ -500,5 +502,195 @@ fn turbo_cache_lookup_under_1us() {
         avg_ns < 10_000.0,
         "avg cache lookup should be <10us, got {:.0}ns",
         avg_ns
+    );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 1: SIMD dot product tests
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn turbo_simd_f32_matches_ndarray() {
+    let a = norm_emb(42);
+    let b = norm_emb(99);
+    let simd_dot = simd::dot_f32(&a, &b);
+    let scalar_dot = simd::dot_f32_scalar(&a, &b);
+    assert!(
+        (simd_dot - scalar_dot).abs() < 1e-5,
+        "SIMD {simd_dot} vs scalar {scalar_dot}"
+    );
+}
+
+#[test]
+fn turbo_simd_i8_correctness() {
+    let a: Vec<i8> = (0..EMBED_DIM).map(|i| ((i % 100) as i8) - 50).collect();
+    let b: Vec<i8> = (0..EMBED_DIM).map(|i| (((i * 7) % 100) as i8) - 50).collect();
+    let simd_result = simd::dot_i8(&a, &b);
+    let scalar_result = simd::dot_i8_scalar(&a, &b);
+    assert_eq!(simd_result, scalar_result, "i8 dot must be exact");
+}
+
+#[test]
+fn turbo_simd_search_matches_ndarray_search() {
+    let (tmp, _store) = build_test_store(50);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let query = fake_emb(25);
+    let k = 10;
+
+    let nd_results: Vec<i64> = search.search(&query, k).iter().map(|(id, _)| *id).collect();
+    let simd_results: Vec<i64> = search
+        .search_simd(&query, k)
+        .iter()
+        .map(|(id, _)| *id)
+        .collect();
+
+    assert_eq!(
+        nd_results, simd_results,
+        "SIMD and ndarray search should return identical results"
+    );
+}
+
+#[test]
+fn turbo_simd_search_zero_vector() {
+    let (tmp, _store) = build_test_store(5);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let zero = vec![0.0f32; EMBED_DIM];
+    assert!(search.search_simd(&zero, 5).is_empty());
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 1: Quantized search tests
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn turbo_quantized_from_ndarray_search() {
+    let (tmp, _store) = build_test_store(50);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let quantized = search.to_quantized();
+
+    assert_eq!(quantized.len(), 50);
+    assert!(!quantized.is_empty());
+
+    let results = quantized.search(&fake_emb(25), 5);
+    assert_eq!(results.len(), 5);
+    assert_eq!(
+        results[0].0, 25,
+        "quantized search should find doc 25 first, got {}",
+        results[0].0
+    );
+}
+
+#[test]
+fn turbo_quantized_recall_vs_f32() {
+    let n = 100;
+    let (tmp, _store) = build_test_store(n);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let quantized = search.to_quantized();
+    let k = 10;
+
+    let test_seeds = [1u8, 13, 42, 77, 99];
+    for seed in test_seeds {
+        let query = fake_emb(seed);
+        let f32_ids: Vec<i64> = search.search(&query, k).iter().map(|(id, _)| *id).collect();
+        let q_ids: Vec<i64> = quantized
+            .search(&query, k)
+            .iter()
+            .map(|(id, _)| *id)
+            .collect();
+
+        let overlap = f32_ids.iter().filter(|id| q_ids.contains(id)).count();
+        let recall = overlap as f32 / k as f32;
+        assert!(
+            recall >= 0.8,
+            "recall@{k} for seed {seed}: {recall} (f32={f32_ids:?}, q={q_ids:?})"
+        );
+    }
+}
+
+#[test]
+fn turbo_quantized_4x_compression() {
+    let (tmp, _store) = build_test_store(100);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let quantized = search.to_quantized();
+
+    let ratio = quantized.compression_ratio();
+    assert!(
+        (ratio - 4.0).abs() < 0.1,
+        "compression ratio should be ~4.0, got {ratio}"
+    );
+}
+
+#[test]
+fn turbo_quantized_zero_vector_safe() {
+    let (tmp, _store) = build_test_store(10);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let quantized = search.to_quantized();
+    assert!(quantized.search(&vec![0.0f32; EMBED_DIM], 5).is_empty());
+}
+
+#[test]
+fn turbo_quantized_dim_mismatch_safe() {
+    let (tmp, _store) = build_test_store(10);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let quantized = search.to_quantized();
+    assert!(quantized.search(&vec![1.0f32; 128], 5).is_empty());
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 1: Head-to-head benchmark (in-test)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[test]
+fn turbo_benchmark_f32_vs_simd_vs_quantized() {
+    let n = 200;
+    let (tmp, _store) = build_test_store(n);
+    let search = NdArraySearch::from_sqlite(tmp.path()).unwrap();
+    let quantized = search.to_quantized();
+    let query = fake_emb(100);
+    let k = 10;
+    let iterations = 500;
+
+    // Warmup
+    for _ in 0..10 {
+        let _ = search.search(&query, k);
+        let _ = search.search_simd(&query, k);
+        let _ = quantized.search(&query, k);
+    }
+
+    let start = std::time::Instant::now();
+    for _ in 0..iterations {
+        let _ = search.search(&query, k);
+    }
+    let f32_us = start.elapsed().as_micros() as f64 / iterations as f64;
+
+    let start = std::time::Instant::now();
+    for _ in 0..iterations {
+        let _ = search.search_simd(&query, k);
+    }
+    let simd_us = start.elapsed().as_micros() as f64 / iterations as f64;
+
+    let start = std::time::Instant::now();
+    for _ in 0..iterations {
+        let _ = quantized.search(&query, k);
+    }
+    let quant_us = start.elapsed().as_micros() as f64 / iterations as f64;
+
+    eprintln!("\n=== Phase 1 Benchmark ({n} docs, {EMBED_DIM}-dim, k={k}) ===");
+    eprintln!("  f32 ndarray:    {f32_us:.1}µs");
+    eprintln!("  f32 SIMD:       {simd_us:.1}µs");
+    eprintln!("  int8 quantized: {quant_us:.1}µs");
+    eprintln!(
+        "  SIMD speedup:   {:.1}×",
+        if simd_us > 0.0 { f32_us / simd_us } else { 0.0 }
+    );
+    eprintln!(
+        "  Quant speedup:  {:.1}×",
+        if quant_us > 0.0 { f32_us / quant_us } else { 0.0 }
+    );
+    eprintln!(
+        "  Memory:         f32={}KB, int8={}KB ({:.1}× compression)",
+        n * EMBED_DIM * 4 / 1024,
+        quantized.memory_bytes() / 1024,
+        quantized.compression_ratio()
     );
 }

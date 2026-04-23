@@ -14,3 +14,5 @@ pub mod ollama_embedder;
 
 pub mod hybrid_cache;
 pub mod ndarray_search;
+pub mod quantize;
+pub mod simd;
