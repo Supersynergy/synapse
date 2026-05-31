@@ -11,7 +11,6 @@ use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 
-
 type AgentScope = (String, Option<String>, String);
 type MarketSeries = Vec<(String, Vec<f64>)>;
 
