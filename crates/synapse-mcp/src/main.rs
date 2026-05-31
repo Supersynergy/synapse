@@ -1,6 +1,5 @@
 //! synapse-mcp: MCP (stdio JSON-RPC 2.0) bridge to synapsed.
 //! Translates MCP tool calls -> msgpack-rpc over unix socket.
-//! Market tools (smx_*) are handled locally without synapsed.
 
 use anyhow::{Context, Result};
 use clap::Parser;
