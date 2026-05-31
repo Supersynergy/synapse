@@ -14,7 +14,7 @@ thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
-synapse-core = { path = "../synapse-core" }
+synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core" }
 rusqlite = { workspace = true }
 # fastembed gated behind feature so default workspace build stays light.
 fastembed = { workspace = true, optional = true }

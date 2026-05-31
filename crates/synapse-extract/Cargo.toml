@@ -26,8 +26,8 @@ tracing-subscriber = { workspace = true }
 tokio = { workspace = true }
 rusqlite.workspace = true
 clap = { workspace = true }
-synapse-core = { path = "../synapse-core" }
-synapse-graph = { path = "../synapse-graph" }
+synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core" }
+synapse-graph = { path = "../../vendor/synapse-db/crates/synapse-graph" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"], optional = true }
 
 [features]

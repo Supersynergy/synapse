@@ -15,7 +15,7 @@ default = []
 [dependencies]
 napi = { version = "2", default-features = false, features = ["napi6", "async"] }
 napi-derive = "2"
-synapse-core = { path = "../synapse-core" }
+synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core" }
 tokio = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }

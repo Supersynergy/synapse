@@ -21,9 +21,9 @@ rmp-serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-synapse-core = { path = "../synapse-core", default-features = false, features = ["backend-rusqlite", "embed", "turbo"] }
+synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core", default-features = false, features = ["backend-rusqlite", "embed", "turbo"] }
 synapse-rerank = { path = "../synapse-rerank", features = [] }
-synapse-license = { path = "../synapse-license", optional = true }
+synapse-license = { path = "../../vendor/synapse-db/crates/synapse-license", optional = true }
 hex = { version = "0.4", optional = true }
 dirs = { version = "6", optional = true }
 ed25519-dalek.workspace = true
