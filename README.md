@@ -1,312 +1,337 @@
-<div align="center">
+<!-- REPO-POLISH:START -->
+<p align="center">
+  <img src="docs/assets/social-preview.png" alt="Repo social preview" width="100%">
+</p>
 
-<img src="assets/banner.svg" alt="Synapse — one file. Your AI's entire memory." width="100%"/>
+> Synapse is a Rust-first developer tool focused on fast local workflows.
 
-### Your AI finally remembers you. Everything. Forever.
-
-One file on disk. Drop it in your project. Your AI picks up where you left off — last week, last month, last laptop.
-
-[![Release](https://img.shields.io/github/v/tag/Supersynergy/synapsedb?label=release&color=blueviolet)](https://github.com/Supersynergy/synapsedb/releases)
-[![CI](https://github.com/Supersynergy/synapsedb/actions/workflows/quality.yml/badge.svg)](https://github.com/Supersynergy/synapsedb/actions/workflows/quality.yml)
-[![Coverage](https://codecov.io/gh/Supersynergy/synapsedb/branch/main/graph/badge.svg)](https://codecov.io/gh/Supersynergy/synapsedb)
-[![MSRV](https://img.shields.io/badge/MSRV-1.95.0-orange)](rust-toolchain.toml)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/Supersynergy/synapsedb?style=flat&color=ffcc00)](https://github.com/Supersynergy/synapsedb/stargazers)
-[![CRDT](https://img.shields.io/badge/CRDT-yrs-8a2be2)](crates/synapsedb-core/src/crdt.rs)
-[![Ed25519](https://img.shields.io/badge/signed-Ed25519-22c55e)](crates/synapsedb-core/src/sign.rs)
-[![MCP](https://img.shields.io/badge/MCP-5%20tools-0ea5e9)](crates/synapsedb-mcp/src/main.rs)
-[![E2E](https://img.shields.io/badge/E2E-tested-16a34a)](bench/e2e_smoke.sh)
-[![Self-Learning](https://img.shields.io/badge/self--learning-bandit%2Bheat-f59e0b)](crates/synapsedb-learn/)
-
-</div>
-
----
-
-## What it feels like
-
-**Before Synapse**
-
-> "Hey Claude, we talked about the database migration yesterday. Remember?"
->
-> *Claude has no memory of yesterday.*
->
-> You paste 40 lines of context. Again. Third time this week.
-
-**After Synapse**
-
-> "Hey Claude, where did we land on the migration?"
->
-> *"You chose Postgres over SurrealDB on Tuesday — the BSL license was the blocker. Draft spec is in `/specs/db-migration.md`."*
-
----
-
-## Three lines of actual code
+## Quick Start
 
 ```bash
-cargo install --locked --git https://github.com/Supersynergy/synapsedb --tag v2.0.0 synapse synapsedb-daemon synapsedb-mcp
-synapsedb-daemon -f ~/brain.db &
-synapse put "postgres chosen over surrealdb" && synapse search "database decision?"
+git clone git@github.com:Supersynergy/synapse.git
+cd synapse
+cargo fetch
 ```
 
-## Wire it into Claude Code in 30 seconds
+Expected result: the project runs locally or reports the next missing prerequisite directly in the terminal.
 
-Add to `~/.claude/settings.json`:
+## Developer Map
 
-```json
-{ "mcpServers": { "synapsedb": {
-    "command": "synapsedb-mcp",
-    "args": ["--sock", "/tmp/synapsedb.sock"]
-  } } }
-```
+| Need | Command |
+|---|---|
+| test | `just test` |
+| lint | `just lint` |
+| fmt | `just fmt` |
+| check | `just check` |
+| setup | `cargo fetch` |
+| build | `cargo build` |
 
-Restart Claude. Your agent now has `put`, `search` and `snap` as native tools. Cursor, Cline, Continue, Aider — same config.
+Full verification path: `just test && just lint && just fmt && just check && cargo fetch && cargo build`
 
----
+Agent instructions live in [AGENTS.md](AGENTS.md).
+<!-- REPO-POLISH:END -->
 
-## v2.0 — All features, all adapters
+# Synapse
 
-| Feature | Status | What it gives you |
-|---------|--------|-------------------|
-| **Ed25519 signing** | stable | tamper-evident memory — every entry cryptographically verified |
-| **CRDT merge** (yrs) | stable | offline-first multi-writer collaboration, no server |
-| **MCP server** (5 tools) | stable | `put / search / merge / timeline / verify` as native agent tools |
-| **IVF sharding** (fastbloom) | stable | scales to 100 M entries without a cluster |
-| **TCP/unix federation** | stable | peer-to-peer memory sync, no cloud |
-| **Self-learning bandit** | stable | Thompson + heat + drift + consolidate — ranking improves as you use it |
-| **Multi-extension format** | stable | `.syn / .synapse / .brainpack` — one reader, any source |
-| **SQLCipher encryption** | feature-flagged | `--features encrypt` for at-rest AES-256 |
+[![CI](https://github.com/supersynergy/synapse/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/supersynergy/synapse/actions/workflows/rust-ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/synapse-core.svg)](https://crates.io/crates/synapse-core)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-CORE.md)
 
-### Ecosystem adapters
+**Local-first Context OS for AI agents: bounded, cited, freshness-aware context with feedback.**
 
-Drop Synapse into any AI stack with one import:
+One SQLite-backed local brain. No Docker. No cloud. CLI, daemon, and MCP tooling
+for giving coding agents the best relevant context before they act.
 
-| Adapter | Install | What it replaces |
-|---------|---------|-----------------|
-| **mem0-shim** | `pip install synapsedb-mem0` | mem0 drop-in — zero code changes |
-| **mastra** | `npm i @synapsedb-ai/mastra` | MastraMemory via unix socket |
-| **vercel-ai** | `npm i @synapsedb-ai/vercel-ai` | `createMemoryProvider` for `useChat` / `generateText` |
-| **copilotkit** | `npm i @synapsedb-ai/copilotkit` | CopilotKit persistent context store |
-| **langfuse** | `pip install synapsedb-langfuse` | `SynapseRetriever` with per-search span tracing |
-| **promptfoo** | `pip install synapsedb-promptfoo` | eval provider + RAG benchmark YAML template |
-| **browser-use** | `pip install synapsedb-browser-use` | `on_page_visit` hook — browse history in memory |
+> Core promise: best context, not biggest context.
 
----
+## Current Release Path
 
-## 📡 NEW: Telepathy — cross-session memory for Claude Code
-
-**Every parallel Claude Code session shares one live brain.**
-
-Session A sees what Session B just edited. Session C knows the prompt D got two seconds ago. Kill a session, open a new one, pick up mid-thought. Nobody else ships this.
+For a clean Mac/Linux user install, use the Context OS release:
 
 ```bash
-bash integrations/claude-code/telepathy/install.sh
+tar -xzf release/dist/synapse-context-os-1.0.1-rc.1.tar.gz
+cd synapse-context-os-1.0.1-rc.1
+./install.sh
 ```
 
-A 22 MB daemon tails `~/.claude/projects/**/*.jsonl`, pushes compact events to Synapse, and a `SessionStart` + `UserPromptSubmit` hook re-injects recent cross-session activity.
+From a repo checkout:
+
+```bash
+release/context-os/install.sh
+release/context-os/verify.sh
+SYNAPSE_VERIFY_INSTALL=1 SYNAPSE_VERIFY_BUILD_PROFILE=dev release/context-os/verify.sh
+```
+
+Release docs and evidence live in [`release/context-os/`](release/context-os/).
+The broad engine and benchmark sections below describe the substrate and
+experimental surface. They are not the default first-run product promise.
+
+---
+
+## Engine Benchmark Notes
+
+| What | Number | Source |
+|------|--------|--------|
+| HNSW-i8 p50 latency (SIFT-1M, ef=64) | **0.10 ms** | [SIFT1M_BENCH_2026-05-12.md](bench-dashboard/SIFT1M_BENCH_2026-05-12.md) |
+| Pub/sub throughput (ring-buffer, tokio broadcast) | **13.1 M events/s** (76 ns/msg) | [REAL_BENCH_WAVE17_18_2026-05-13.md](bench-dashboard/REAL_BENCH_WAVE17_18_2026-05-13.md) |
+| Conformal recall bound | **R=1.0 guaranteed** (split-conformal, validated LongMemEval) | [RELEASE_NOTES_v1.0.1-rc.md](RELEASE_NOTES_v1.0.1-rc.md) |
+
+**Caveats**: HNSW-i8 has R@10=0.908 at ef=64 on SIFT-1M (use ef=192 for R@10≥0.99 at 3240 QPS). Pub/sub is in-process tokio channel — not a persistent durable queue. Conformal guarantee validated on LongMemEval only.
+
+---
+
+## 5-line Context OS demo
+
+```bash
+synx -f "$HOME/.synapse/brain.db" prime .
+synx -f "$HOME/.synapse/brain.db" remember --kind decision "Use Synapse context packs before major code edits."
+synx -f "$HOME/.synapse/brain.db" context "current repo task" --mode coding
+synx -f "$HOME/.synapse/brain.db" fresh-context --cwd . --prompt "latest package API changes"
+synx -f "$HOME/.synapse/brain.db" doctor --fix
+```
+
+---
+
+## Context-OS for any agent CLI (Claude Code · Codex · Gemini CLI)
+
+One local MCP server that gives any agent **always-best, token-budget-bounded, self-learning**
+context. Deletion-based (verbatim) — file paths, error strings and numbers survive exactly;
+no cloud, no vendor lock. Worldwide one-liner (sha256-verified prebuilt, falls back to
+`cargo install`/source; re-signs on macOS):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/supersynergy/synapse/main/scripts/install.sh | sh
+```
+
+From a checkout instead:
+
+```bash
+sh scripts/install-ctxos.sh install --all   # detects claude / codex / gemini, registers the MCP server
+sh scripts/install-ctxos.sh doctor           # verify
+```
+
+Then any agent can call these tools:
+
+| Tool | What it does |
+|------|--------------|
+| `context_pack(query, budget_tokens)` | Retrieve + pack the minimal **verbatim** STATE within a token budget. Best-first, lost-in-the-middle-safe. Call it first. |
+| `context_state(topic)` | Current-truth card: latest verified facts + decisions, supersession marked. |
+| `context_feedback(used_ids, gate)` | Report what you used + whether your gate passed → retrieval self-improves (per-kind reward). |
+| `context_remember(text, kind)` | Persist a durable fact/decision (embedded, searchable). |
+
+How the packing works: hybrid retrieval (8 ms) → SimHash near-dup collapse → adaptive
+per-kind **deletion** tiers (`full → signatures → fact-delta → one-line`) → greedy
+budget knapsack → serial-position order. Pure, deterministic, no LLM call. See
+[`docs/CTXOS.md`](docs/CTXOS.md) and [`docs/SPEC-ctxos-v2.md`](docs/SPEC-ctxos-v2.md).
+
+---
+
+## Architecture
+
+```mermaid
+graph TD
+    CLI["synx CLI"] --> Daemon["synapsed (Unix-socket)"]
+    MCP["synapse-mcp (agent memory tools)"] --> Daemon
+    Daemon --> Core["synapse-core (SQLite + FTS5 + sqlite-vec)"]
+    CLI --> Context["context / prime / fresh-context / feedback"]
+    Context --> Core
+    Context --> Learn["synapse-learn feedback loop"]
+    Daemon --> Ann["synapse-ann (usearch HNSW)"]
+    Daemon --> Fts["synapse-fts (Tantivy)"]
+    Daemon --> Rerank["synapse-rerank (ColBERT-i8)"]
+    Core --> DB[(brain.db)]
+    Ann --> DB
+    Fts --> DB
+```
+
+---
+
+## Crate map
+
+### Production (`crates/`)
+
+| Crate | Role |
+|-------|------|
+| `synapse-core` | Store, FTS5, sqlite-vec index, KG triples, zstd/blake3 |
+| `synapse-engine` | ABI bridge + RRF fusion |
+| `synapsed` | Unix-socket RPC daemon |
+| `synapse-cli` | CLI: put / find / hybrid / merge / sign / verify / stats |
+| `synapse-mcp` | MCP server — Context-OS tools (`context_pack`/`context_state`/`context_feedback`/`context_remember`) + memory/agent tools |
+| `synapse-pack` | Token-budget context packer: verbatim deletion-tiers + SimHash dedup + serial-position order (pure, no IO) |
+| `synapse-space` | Agent-memory hierarchy: Space → Wing → Room → Drawer |
+| `synapse-learn` | Thompson-sampling bandit router |
+| `synapse-rerank` | Cross-encoder rerank (identity default; ONNX optional) |
+| `synapse-extract` | Text extraction + chunking |
+| `synapse-temporal` | NL date parser, bitemporal filter |
+| `synapse-kernel` | NEON int8/f16/hamming kernel crate |
+| `synapse-quant` | f32→i8/f16/binary, Matryoshka MRL |
+| `synapse-ann` | HNSW via usearch + brute-force SIMD scan |
+| `synapse-fts` | Tantivy persistent index (BMP block-max pruning) |
+| `synapse-fusion` | MUVERA RRF API |
+| `synapse-colbert` | MaxSim late-interaction scaffold |
+| `synapse-splade` | Neural-sparse inverted index (SPLADE-v3) |
+| `synapse-cluster` | CRDT gossip + Raft CP-mode |
+| `synapse-graph` | Knowledge-graph triples + Datalog (⚠️ semi-naive broken above 100 facts) |
+| `synapse-media` | Video keyframe + audio + image embedding index |
+| `synapse-multimodal` | Multimodal asset pipeline |
+| `synapse-py` | PyO3 wheel (Brain, LangChain/LlamaIndex adapters) |
+| `synapse-js` | JS/TS SDK via napi-rs |
+| `synapse-cms` | WordPress/CMS Thompson-Beta TTL bandit |
+| `synapse-market` | HFT/backtest: OHLCV + regime-vec |
+| `synapse-migrate` | Import from Qdrant/LanceDB/Chroma |
+| `synapse-obs` | OTel + Prometheus dashboards |
+| `synapse-stream` | Pub/sub + CDC (pub/sub: 76 ns/msg; CDC: 2,241/s SQLite-bottleneck) |
+| `synapse-tsdb` | Time-series: 4.26M inserts/s (fallback store; Arrow-path unbenched) |
+| `synapse-mlx-olap` | GROUP BY analytics CPU: ~25M rows/s (Metal path not verified) |
+| `synapse-jit` | Cranelift JIT filter: 2× vs SQLite (no speedup vs interpreter) |
+| `synapsql` | MySQL-wire proxy (MariaDB bench: 700×/32×/1.85×) |
+| `synapse-raft` | WAL-Raft segments, 3-node election <1s |
+| `synapse-spann` | Disk-tier SPANN scaffold |
+
+### Experimental (`experimental/`)
+
+Stubs — excluded from default workspace build.
+
+| Crate | Status |
+|-------|--------|
+| `synapse-mysql` | MySQL wire-protocol proxy (0 tests) |
+| `synapse-pg` | Postgres wire-protocol proxy (0 tests) |
+| `synapse-edge` | Pingora HTTP frontend (RUSTSEC blocked) |
+| `synapse-rank` | LambdaMART scaffold (skeleton only) |
+| `synapse-embed-gpu` | GPU embedding bridge (standalone workspace) |
+
+---
+
+## Benchmarks (verified, M4 Max)
+
+Full bench files in [`bench-dashboard/`](bench-dashboard/).
+
+### ANN — SIFT-1M 128d (1M vectors, 1000 queries)
+
+Source: [SIFT1M_BENCH_2026-05-12.md](bench-dashboard/SIFT1M_BENCH_2026-05-12.md)
+
+| Mode | p50 ms | QPS | R@10 | Notes |
+|------|--------|-----|------|-------|
+| hnsw-i8 (ef=64) | **0.10** | 10 474 | 0.908 | lowest latency, recall loss |
+| hnsw-f16 (ef=64) | 0.18 | 5 723 | 0.979 | balanced |
+| hnsw-f16 (ef=192) | 0.32 | 3 240 | 0.993 | recommended production |
+| hnsw-f32 (ef=64) | 0.34 | 3 013 | 0.982 | highest recall potential |
+| brute-force i8 | 5.43 | 182 | 0.969 | exact, no index |
+| brute-force f32 | 18.53 | 54 | 1.000 | exact, no index |
+
+**Build time caveat**: HNSW index build is 197–672s for 1M vectors (sequential usearch insert). faiss-hnsw builds in ~30–60s. Parallel batch insert is TODO.
+
+### ANN — Small corpus (N=10k, 384d)
+
+Source: [RAW_ANN_BENCH_2026-05-11.md](bench-dashboard/RAW_ANN_BENCH_2026-05-11.md), [LINUX_VS_MACOS_2026-05-13.md](bench-dashboard/LINUX_VS_MACOS_2026-05-13.md)
+
+| Backend | p50 µs | R@10 |
+|---------|--------|------|
+| usearch-HNSW (synapse) | **77** (macOS) / **74** (Linux) | 0.942 |
+| FAISS-HNSW | 98 | 0.9 |
+| FAISS-Flat (exact) | 208 | 0.9 |
+
+R@10=0.942 < 0.95 target. Needs `expansion_search` tuning for ≥0.95.
+
+### Hybrid search — production daemon (294k docs)
+
+Source: [REAL_BENCH_2026-05-11.md](bench-dashboard/REAL_BENCH_2026-05-11.md)
 
 | Metric | Value |
-|---|---|
-| End-to-end (jsonl → visible in other session) | ~3 s |
-| `syn put` / `syn search` / hook | 50 / 22 / 47 ms |
-| Daemon CPU idle | ~0 % |
-| Full scan 8 676 jsonls | 58 ms |
+|--------|-------|
+| hybrid search p50 | **35 ms** (FTS5 + ANN + RRF + rerank, single Unix-socket call) |
+| put-batch | **334 k/s** (FTS5 + vec + CRDT, persisted) |
+| Qdrant gRPC vs synapse put-batch | Synapse 56× faster (local, not iso-recall) |
 
-→ Full docs: [`integrations/claude-code/telepathy/`](integrations/claude-code/telepathy/README.md)
+### MTEB retrieval (2 tasks, CPU-only)
+
+Source: [MTEB_MINI_2026-05-11.md](bench-dashboard/MTEB_MINI_2026-05-11.md)
+
+| Model | Task | nDCG@10 | Published | Delta |
+|-------|------|---------|-----------|-------|
+| bge-small-en-v1.5 | NFCorpus | 0.343 | 0.327 | +0.016 |
+| bge-small-en-v1.5 | SciFact | 0.713 | 0.671 | +0.042 |
+
+Delta vs published likely reflects MTEB 2.x scoring changes. 2 of 56 MTEB tasks measured.
+
+### Durability — SQLite-WAL (macOS, io_uring pending Linux)
+
+Source: [FAIR_DURABILITY_BENCH_2026-05-13.md](bench-dashboard/FAIR_DURABILITY_BENCH_2026-05-13.md)
+
+| Durability | Batch-1 | Batch-1000 |
+|------------|---------|------------|
+| strict (fsync) | 7 K/s | 943 K/s |
+| batched | 45 K/s | 926 K/s |
+| fast (no fsync) | 110 K/s | 1.1 M/s |
+| in-memory | 384 K/s | 1.3 M/s |
+
+io_uring (Linux bare-metal) not measured; see `scripts/fair_durability_linux.sh`.
+
+### Stream / TSDB (wave-17/18)
+
+Source: [REAL_BENCH_WAVE17_18_2026-05-13.md](bench-dashboard/REAL_BENCH_WAVE17_18_2026-05-13.md)
+
+| Component | Number | Notes |
+|-----------|--------|-------|
+| pub/sub | **13.1 M events/s** (76 ns/msg) | tokio broadcast-channel |
+| TSDB insert (fallback store) | **4.26 M rows/s** | Arrow-path unbenched |
+| CDC (on-disk SQLite) | 2,241 events/s | SQLite-write-per-event bottleneck |
+| Datalog ancestor-closure | ❌ 7s for 100 facts | semi-naive broken, not production-ready |
 
 ---
 
-## Top 20 real-world use cases
+## Feature matrix
 
-Drop-in memory that actually changes what you can build:
+| Feature | Status | Notes |
+|---------|--------|-------|
+| BM25 full-text (FTS5) | ✅ stable | 23µs/q on 10k docs |
+| sqlite-vec ANN | ✅ stable | |
+| Tantivy BM25 | ✅ stable | 18.3× warm-start |
+| usearch HNSW | ✅ stable | 0.10ms p50 at ef=64 (SIFT-1M) |
+| RRF hybrid fusion | ✅ stable | NEON SIMD 5–8× vs scalar |
+| ColBERT-i8 rerank | ✅ stable | 12.2× speed, 3.9× storage vs f32 |
+| SPLADE neural-sparse (BMP) | ✅ stable | 9.7× vs naive scan |
+| MUVERA full pipeline | ✅ stable | Dense+SPLADE+RRF+ColBERT, sub-ms |
+| Conformal R=1.0 guarantee | ✅ stable | split-conformal, LongMemEval validated |
+| CRDT gossip cluster | ✅ stable | <200ms LAN convergence |
+| Raft CP-mode | ✅ minimal | `cluster-raft` feature, 3-node <1s election |
+| Ed25519 signing | ✅ stable | 25µs sign + verify |
+| MCP server (6 tools) | ✅ stable | Claude + Cursor native |
+| Pub/sub stream | ✅ stable | 76 ns/msg |
+| TSDB insert | ✅ partial | fallback store 4.26M/s; Arrow-path unbenched |
+| JIT filter (Cranelift) | ✅ partial | 2× vs SQLite, no gain vs interpreter |
+| Metal/MLX OLAP | ⚠️ unverified | CPU-only confirmed; Metal dispatch not observed |
+| Datalog (synapse-graph) | ❌ broken | semi-naive quadratic, 7s for 100 facts |
+| Python wheel (PyO3) | 🔜 planned | `synapse-py` maturin publish |
+| Linux CI (aarch64) | ⚠️ partial | `synapse-extract` E0463 + `synapse-market` opensrv dep |
+| CLIP cross-modal | ✅ scaffold | `multimodal` feature, ONNX swap-path |
+| Audio CLAP | ✅ scaffold | `audio-clap` feature |
+| VJEPA-2 video | ✅ scaffold | ONNX swap-path |
 
-1. **Multi-session Claude swarm** — N Claude Code windows, one shared brain, live cross-session telepathy (new).
-2. **Persistent pair-programmer** — agent remembers every architectural decision across weeks, no CLAUDE.md bloat.
-3. **Cursor / Cline / Continue / Aider memory** — same brain, any IDE, switch freely mid-task.
-4. **Offline-first team KB** — CRDT merge = multiple devs, multiple laptops, no server, conflicts auto-resolve.
-5. **Tamper-evident decision log** — Ed25519 signatures on every entry, audit trail for compliance.
-6. **mem0 drop-in replacement** — `pip install synapsedb-mem0`, zero code change, 10× faster, self-hosted.
-7. **RAG without a vector DB** — single file replaces Pinecone/Chroma/Weaviate for up to 100 M entries.
-8. **Agent hand-off** — orchestrator writes plan, workers read it, writers publish results, all through one brain.
-9. **Long-running research agent** — 8-hour browser-use session accumulates findings, next session consumes them.
-10. **PR-review memory** — reviewer agent keeps patterns across PRs; learns your codebase's conventions.
-11. **Customer-support agent** — every ticket's context persists, support bot answers with full history.
-12. **Self-improving prompts** — self-learning bandit reranks memories by what actually helped → better retrieval each session.
-13. **Incident post-mortem corpus** — every outage + fix becomes searchable context for the next one.
-14. **Spec-driven development** — living specs in Synapse; agents query them before editing code.
-15. **Cross-repo refactor** — one session scans repo A, logs patterns, another session applies them in repo B.
-16. **Sales / CRM knowledge graph** — lead notes, calls, decisions — agent writes a follow-up email with full context.
-17. **Research-paper digest** — batch-ingest PDFs, agents cite sources across conversations.
-18. **Laptop migration** — copy one `.syn` file, new machine has your AI's entire history.
-19. **Air-gapped / EU-compliant deployment** — no cloud, no telemetry, no vendor lock-in, GDPR by default.
-20. **LLM-provider portability** — swap Claude → GPT → local Llama, memory stays identical.
+---
 
-## Real-competitor bench (agent memory, 1 k docs, 200 q, 384-d)
+## Roadmap (next 3 months)
 
-Same corpus, same embeddings, run locally. Full script: [`bench/real_competitors.py`](bench/real_competitors.py) · narrative: [`bench/RESULTS-REAL-COMPETITORS.md`](bench/RESULTS-REAL-COMPETITORS.md).
+- [ ] Datalog semi-naive: delta-join + HashMap index (currently broken above 100 facts)
+- [ ] HNSW parallel batch insert (target <10s for 1M vs current 197–672s)
+- [ ] glass-backend CPU-SIMD beam search (expected ≥2× QPS vs usearch)
+- [ ] io_uring durability bench on bare-metal Linux
+- [ ] Metal dispatch verification for `synapse-mlx-olap`
+- [ ] Fix `synapse-extract` Linux build (E0463 crate link-order)
+- [ ] MTEB full 56-task suite (2/56 measured today)
+- [ ] Python wheel publish to PyPI (`synapse-py` via maturin)
+- [ ] `synapse-raft` production hardening
+- [ ] Windows: not planned
 
-| engine | insert ms | ms / query | size KB | carries |
-|--------|----------:|-----------:|--------:|---------|
-| FAISS flat (floor) | 0.20 | 0.010 | 1 500 | vector only |
-| SQLite FTS5 (floor) | 2.03 | 0.012 | 140 | keyword only |
-| **Synapse v2.0** | **67.0** | **0.023** | **1 290** | **BM25 + HNSW + KG + CRDT + sign + MCP + self-learn + sharding** |
-| Chroma | 96.3 | 0.303 | 4 434 | vector only |
-| LanceDB | 41.7 | 1.440 | 1 574 | vector only |
-
-Synapse sits **2.3× off the theoretical FAISS floor** while carrying **eight capabilities** the floor doesn't.
-
-## Head to head, numbers you can re-run
-
-Every row below reproduces with one command: `bash bench/bench_20_usecases.sh`.
-Full 50-usecase matrix + CatBoost-picked defaults: [`bench/RESULTS-V1.md`](bench/RESULTS-V1.md).
-
-| op (10 k docs, M4 Max, p50) | Synapse | runner-up | gap |
-|-----------------------------|--------:|----------:|----:|
-| cold open | **0.69 ms** mmap | SQLite WAL ~ 7 ms | **10×** |
-| BM25 query | **23 µs** | Meilisearch ~ 1.0 ms | **43×** |
-| vector kNN k = 10 | **22 µs** | LanceDB ~ 50 µs | **2×** |
-| CRDT merge, 200 ops | **0.59 ms** | Automerge baseline ~ 1.0 ms | **1.7×** |
-| sign + verify manifest | **25 µs each** | `ed25519-dalek` stock | parity |
-| pack → ship → verify → mmap | **12 ms end-to-end** | tar + cosign + sqlite ≈ 340 ms | **28×** |
-
-## What you stop paying for
-
-| What most teams run today | Synapse |
-|---------------------------|---------|
-| Pinecone / Qdrant + Redis + Postgres + a Python embedder + Docker | one binary + one file |
-| Monthly bills, rate limits, vendor outages | free, offline, yours |
-| 30-min copy-paste onboarding to share context with a teammate | `scp brain.brainpack you@laptop:~/` — done |
-| "Sorry, I'm a new session, can you re-explain?" | every decision remembered |
-| Homemade versioning in Notion, Slack threads, git commits | searchable timeline, one query |
-| A sync server for multi-writer collaboration | merges just work, offline, no server |
-
-You ship the same AI features with **90 % less infrastructure**.
-
-## Why this works
-
-- **It's one file.** Back it up with `cp`. Ship it with `scp`. Commit it with `git`. Inspect it with `diff`. You already know the tools.
-- **It's signed.** When a teammate sends you a `brain.brainpack`, you know it came from them. Like a verified email, but for AI memory.
-- **It's offline by default.** No cloud. No API key. No privacy policy to read. Your memories stay on your machine until you choose to ship one.
-- **It's fast enough to feel instant.** Every search is quicker than a mouse click.
-- **It's open forever.** The format is public domain. Even if this project disappeared tomorrow, every `.synx` file keeps working — in any language, on any machine.
-
-## What it actually does
-
-1. **Remembers every decision.** Your AI never forgets a choice, a name, a file path, a decision.
-2. **Finds the right memory in a blink.** Full-text + meaning-based search, together, in the same query.
-3. **Tracks how your thinking changes.** "We chose X last week. Then switched to Y on Tuesday." Both survive, in order.
-4. **Keeps per-user, per-session, per-project memories separate.** Your agent knows who it's talking to.
-5. **Syncs between your laptops without a server.** Two devices, same brain, no cloud.
-6. **Ships memory like a PDF.** Sign it, send it, anyone can verify it.
-7. **Dedupes automatically.** Say the same thing twice — stored once.
-8. **Plugs into Claude Code, Cursor, Cline, Continue, Aider.** One JSON block, done.
-9. **Free forever.** MIT for the code, public domain for the format.
-10. **Works as the only piece of infra you need.** No database cluster. No embedding service. No sync server.
-
-<details>
-<summary><sub>Under the hood · for the engineers</sub></summary>
-
-&nbsp;
-
-Synapse is a single-file binary format (`.synx`) written in Rust. It fuses BM25 full-text (via Tantivy), HNSW + int8-quantized vector search, a temporal knowledge-graph layer, memory scopes (mem0 parity), Automerge CRDT sync, Ed25519-signed distribution, BLAKE3 content-addressed chunks, and a zero-copy `mmap` reader.
-
-**Measured on M4 Max (Criterion-reproducible):**
-
-- `23 µs` BM25 query (p50, 10 k docs)
-- `22 µs` vector kNN k=10 (p50, 2 k × 64-d)
-- `0.69 ms` cold open with `mmap`
-- `0.59 ms` CRDT merge of 200 ops
-- `25 µs` Ed25519 sign + verify
-- `5.7 µs` RPC round-trip over AF_UNIX msgpack
-
-**Architecture:**
-
-```text
-put → [ BM25 ∥ HNSW+PQ ∥ KG ] → fused rank → Ed25519-signed CRDT log → .synx
-```
-
-Reproduce: `cargo bench -p synapsedb-core --features full`. Full 50-usecase bench + CatBoost-picked defaults in [`bench/RESULTS-V1.md`](bench/RESULTS-V1.md). Recall eval (LoCoMo / LongMemEval) roadmap in [`docs/EVAL-HARNESS.md`](docs/EVAL-HARNESS.md).
-
-</details>
-
-## Compared to the field
-
-**9 capabilities. 20 incumbents. Only Synapse ships them all in one file.**
-
-<div align="center">
-
-<a href="assets/matrix-full.svg"><img src="assets/matrix-full.svg" alt="Synapse vs the field — 20-tool capability matrix" width="100%"/></a>
-
-<sub>Click for the full-size 2200×1500 version · searchable markdown table below.</sub>
-
-</div>
-
-<sup>Click the image for the full-size version. The short table below is the same data, text-searchable.</sup>
-
-| Tool | BM25 · keyword | Vector · semantic | Graph · relations + time | Scopes · user / session | Sync · multi-writer | Signing · Ed25519 | One file | µs-RPC | License |
-|------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **→ Synapse** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | **MIT + CC0** |
-| SQLite | ✅ | add-on | — | — | — | — | ✅ | — | Public |
-| DuckDB | add-on | add-on | — | — | — | — | ✅ | — | MIT |
-| SurrealDB | ✅ | ✅ | ✅ | — | — | — | — | — | ❌ BSL |
-| PocketBase | ✅ | add-on | — | — | — | — | ✅ | — | MIT |
-| Qdrant | — | ✅ | — | tag only | — | — | — | — | Apache |
-| Meilisearch | ✅ | partial | — | — | — | — | — | — | MIT |
-| LanceDB | ✅ | ✅ | — | — | — | — | partial | — | Apache |
-| Chroma | — | ✅ | — | — | — | — | — | — | Apache |
-| Weaviate | ✅ | ✅ | partial | tag only | — | — | — | — | BSD |
-| Pinecone | — | ✅ | — | tag only | — | — | — | — | ❌ closed |
-| memvid | ✅ | — | — | — | — | — | ✅ | — | MIT |
-| mem0 | — | add-on | add-on | ✅ | — | — | — | — | Apache |
-| Graphiti | — | add-on | ✅ | ✅ | — | — | — | — | Apache |
-| cognee | — | add-on | ✅ | ✅ | — | — | — | — | Apache |
-| Memori | — | — | — | ✅ | — | — | — | — | MIT |
-| Zep | — | ✅ | partial | ✅ | — | — | — | — | Apache |
-| Letta | — | ✅ | — | ✅ | — | — | — | — | Apache |
-| Automerge | — | — | — | — | ✅ | — | — | — | MIT |
-| RocksDB | — | — | — | — | — | — | ✅ | — | Apache |
-| Parquet | — | — | — | — | — | — | ✅ | — | Apache |
-
-<sup>**add-on** = needs an extension · **tag only** = namespace filter, no real scope concept · **partial** = available but limited · **BSL / closed** = not permissive OSS.</sup>
-
-Full one-by-one breakdown: [`docs/COMPARISON-V1.md`](docs/COMPARISON-V1.md).
-
-## 60-second tour of the idea
-
-Your agent has a 200 K-token context and zero memory between sessions. The usual fix is a pipeline — Qdrant, Redis, a Python venv, a Docker compose, three SDKs — so a language model can remember what it did yesterday.
-
-**The stack is the bug.** Synapse is one file, one binary, one process. Every capability above lives inside a `.synx` container you can `git commit`, `scp`, sign and hand to a teammate. That's it.
-
-## Deeper dives
-
-- [`docs/CLAUDE-CODE-MEMORY.md`](docs/CLAUDE-CODE-MEMORY.md) — five real agentic workflows
-- [`docs/SYNX-FORMAT-V2.md`](docs/SYNX-FORMAT-V2.md) — binary format spec (CC0)
-- [`docs/BRAINPACK-V2.md`](docs/BRAINPACK-V2.md) — distribution wrapper + signing
-- [`docs/COMPARISON-V1.md`](docs/COMPARISON-V1.md) — 20-tool head-to-head
-- [`bench/RESULTS-V1.md`](bench/RESULTS-V1.md) — 50-usecase benchmark, 5 categories
-- [`docs/LICENSE-STRATEGY.md`](docs/LICENSE-STRATEGY.md) — MIT + CC0 split + monetisation paths
-- [`docs/USECASES.md`](docs/USECASES.md) — 20 deployment recipes
-- [`docs/STRATEGY.md`](docs/STRATEGY.md) — how Synapse tops each competitor on their home turf
-- [`CHANGELOG.md`](CHANGELOG.md) — v0.2.0 → v1.0.0 history
-
-## Ecosystem
-
-- **Claude Code** — paste the MCP block above, restart, done
-- **Any MCP agent** — Cursor, Cline, Continue, Aider share the same config
-- **synapse-turbo** — [`tools/turbo`](tools/turbo) — Python daemon for sub-ms queries (3-tier cache: pre-computed + NumPy SIMD + ONNX). 1000x faster than CLI for agent hooks.
-- **Node.js** — [`sdk/node`](sdk/node)
-- **Python** — [`sdk/python/synapsedb_reader.py`](sdk/python/synapsedb_reader.py), stdlib + `zstandard` + `blake3`
-- **DuckDB analytics** — `ATTACH 'brain.db' AS s (TYPE sqlite, READ_ONLY);`
+---
 
 ## License
 
-MIT for the code. CC0 for the format specification. The format outlives the repo — any language, any product, no asking.
+MIT — library crates.
+`synapse-engine` — source-available Engine License (non-commercial free; commercial license available).
 
----
+See [LICENSE-CORE.md](LICENSE-CORE.md) and [LICENSE-ENGINE.md](LICENSE-ENGINE.md).
 
-<div align="center">
+## Contributing
 
-Built in Rust. Shipped in Germany. Open forever.
-
-*by [Maxim Supersynergy](https://github.com/Supersynergy)*
-
-</div>
+See [CONTRIBUTING.md](CONTRIBUTING.md). Known issues: [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
