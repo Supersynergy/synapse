@@ -9,6 +9,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- Default workspace build is now the Context-OS product surface only:
+  `synapsed`, `synapse-cli`, `synapse-mcp`, `synapse-rerank`, `synapse-learn`,
+  `synapse-extract`, `synapse-space`, `synapse-temporal` (8 crates, down from
+  14). Advanced retrieval (`colbert`, `splade`, `fusion`), multimodal
+  (`multimodal`, `media`), and bindings (`js`) are excluded from the default
+  build and built on demand. Default `cargo check --workspace` dropped 50s -> 20s.
+  See `docs/adr/0001-context-os-product-boundary.md`.
+
+### Removed
+- Stale `MarketSeries` type alias in `synapse-mcp` (leftover from the market cut).
+
 ---
 
 ## [1.0.1-wave-19] - 2026-05-13

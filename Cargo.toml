@@ -1,7 +1,26 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
-exclude = ["crates/synapse-py", "crates/synapse-metal", "crates/synapse-embed-gpu", "vendor/synapse-db"]
+# Default workspace = the Context-OS product surface only. Everything below is
+# built on demand (cd into it or `-p` from its own dir), not by the default
+# `cargo check --workspace`. Rationale: docs/adr/0001-context-os-product-boundary.md.
+exclude = [
+    # substrate (vendored, built by the product crates that path-depend on it)
+    "vendor/synapse-db",
+    # language bindings — not part of the default product build
+    "crates/synapse-py",
+    "crates/synapse-js",
+    # platform / GPU backends — feature-gated, opt-in
+    "crates/synapse-metal",
+    "crates/synapse-embed-gpu",
+    # advanced retrieval research — not in the 6-command product surface
+    "crates/synapse-colbert",
+    "crates/synapse-splade",
+    "crates/synapse-fusion",
+    # multimodal / media — SPEC: "multimodal surfaces are not default release claims"
+    "crates/synapse-multimodal",
+    "crates/synapse-media",
+]
 
 [workspace.metadata]
 # Production crates — included in default workspace build
