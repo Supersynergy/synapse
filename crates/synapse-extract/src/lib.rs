@@ -489,6 +489,6 @@ mod tests {
         let w: f64 = c
             .query_row("SELECT weight FROM edges", [], |r| r.get(0))
             .unwrap();
-        assert!(w <= 1.0 && w >= 0.1);
+        assert!((0.1..=1.0).contains(&w));
     }
 }

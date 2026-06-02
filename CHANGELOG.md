@@ -18,8 +18,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   build and built on demand. Default `cargo check --workspace` dropped 50s -> 20s.
   See `docs/adr/0001-context-os-product-boundary.md`.
 
+### Added
+- Layering guard `scripts/check-layering.py`, wired into `just check` and CI:
+  fails if a product crate depends on an excluded experimental crate (ADR 0001).
+  Also exposed as `just check-layers`.
+- Root `ARCHITECTURE.md` with the L0 substrate / L1 domain / L2 interface overview.
+
+### Changed
+- Clippy now runs with `-D warnings` in the `just check` gate and CI (warning-free bar).
+
 ### Removed
 - Stale `MarketSeries` type alias in `synapse-mcp` (leftover from the market cut).
+- Stale market MCP tests (`smx_candles_tool_returns_json` and the `smx_*` entries
+  in the tool-surface assertion) — those tools were already cut from `synapse-mcp`.
+  Tool-surface threshold corrected 20 -> 16 to match the real served surface.
+
+### Fixed
+- Clippy warnings: `manual_range_contains` in `synapse-extract`, `type_complexity`
+  in `synapse-cli` IO round-trip tests.
 
 ---
 

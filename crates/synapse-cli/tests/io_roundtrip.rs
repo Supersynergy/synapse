@@ -5,6 +5,10 @@ use std::io::Write;
 use synapse_core::{PutRequest, Store};
 use tempfile::tempdir;
 
+// Column tuples pulled from SQLite in these round-trip checks.
+type DocRow = (i64, Option<String>, Option<String>, String, i64);
+type ExportRow = (Option<String>, Option<String>, String, Option<String>);
+
 fn seed_store(dir: &tempfile::TempDir) -> Store {
     let db = dir.path().join("brain.db");
     let mut store = Store::open(&db).unwrap();
@@ -53,7 +57,7 @@ fn csv_export_then_import() {
             .conn
             .prepare("SELECT id, title, uri, text, ts FROM docs ORDER BY id")
             .unwrap();
-        let rows: Vec<(i64, Option<String>, Option<String>, String, i64)> = stmt
+        let rows: Vec<DocRow> = stmt
             .query_map([], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
             })
@@ -124,7 +128,7 @@ fn jsonl_export_then_import() {
             .conn
             .prepare("SELECT id, title, uri, text, ts FROM docs ORDER BY id")
             .unwrap();
-        let rows: Vec<(i64, Option<String>, Option<String>, String, i64)> = stmt
+        let rows: Vec<DocRow> = stmt
             .query_map([], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
             })
@@ -238,7 +242,7 @@ fn external_sqlite_import() {
     let mut stmt = src_conn
         .prepare("SELECT title, NULL, text, NULL FROM docs")
         .unwrap();
-    let rows: Vec<(Option<String>, Option<String>, String, Option<String>)> = stmt
+    let rows: Vec<ExportRow> = stmt
         .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
         .unwrap()
         .collect::<rusqlite::Result<_>>()

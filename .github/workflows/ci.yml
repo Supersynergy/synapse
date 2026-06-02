@@ -24,10 +24,12 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
+      - name: layering (ADR 0001)
+        run: python3 scripts/check-layering.py
       - name: rustfmt
         run: cargo fmt --all --check
       - name: clippy
-        run: cargo clippy --workspace --all-targets
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: check
         run: cargo check --workspace
       - name: test
