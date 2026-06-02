@@ -34,6 +34,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   Tool-surface threshold corrected 20 -> 16 to match the real served surface.
 
 ### Fixed
+- Lexical search (`synapse find`) returned the same document twice when the
+  vendored tantivy FTS index held a doc across multiple segments; the read path
+  now dedups hits by id (bumps `vendor/synapse-db`).
 - Clippy warnings: `manual_range_contains` in `synapse-extract`, `type_complexity`
   in `synapse-cli` IO round-trip tests.
 
