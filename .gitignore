@@ -19,3 +19,5 @@ bench/**/target/
 __pycache__/
 catboost_info/
 *.db-journal
+.codegraph/
+.grepgod/
