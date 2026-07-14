@@ -13,6 +13,7 @@ on:
       - "integrations/codex/**"
       - "release/synapse-memory/**"
       - ".github/workflows/synapse-memory-ci.yml"
+      - ".github/workflows/release-synapse-memory.yml"
   pull_request:
     paths:
       - "Cargo.lock"
@@ -24,6 +25,7 @@ on:
       - "integrations/codex/**"
       - "release/synapse-memory/**"
       - ".github/workflows/synapse-memory-ci.yml"
+      - ".github/workflows/release-synapse-memory.yml"
   workflow_dispatch:
 
 permissions:

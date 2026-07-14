@@ -1,10 +1,10 @@
 name: release-synapse-memory
 
 # Canonical user-facing release. One portable Rust `synx` binary per native target.
-# Tag and workspace version must match: ctxos-v1.0.1-rc.1 -> 1.0.1-rc.1.
+# Tag and workspace version must match: synapse-memory-v1.0.1-rc.1 -> 1.0.1-rc.1.
 on:
   push:
-    tags: ["ctxos-v*"]
+    tags: ["synapse-memory-v*"]
   workflow_dispatch:
 
 permissions:
@@ -33,7 +33,7 @@ jobs:
           grep -Fq "default_version=\"$release_version\"" release/synapse-memory/install.sh
           grep -Fq "\$DefaultVersion = \"$release_version\"" release/synapse-memory/install.ps1
           if test "${GITHUB_EVENT_NAME}" = push; then
-            tag_version="${GITHUB_REF_NAME#ctxos-v}"
+            tag_version="${GITHUB_REF_NAME#synapse-memory-v}"
             test "$tag_version" = "$workspace_version"
           fi
       - name: Owner-approved release license
