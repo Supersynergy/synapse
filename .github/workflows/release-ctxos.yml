@@ -99,6 +99,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - name: Build portable Rust binary
         run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            export CFLAGS="-D_GNU_SOURCE -include sys/types.h"
+          fi
           cargo build --locked --profile release-hardened \
             --target "${{ matrix.target }}" \
             -p synapse-cli \
@@ -156,7 +159,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $tmp | Out-Null
           & $bin -f "$tmp\brain.db" init
           & $bin -f "$tmp\brain.db" remember --kind decision "native release smoke"
-          $context = & $bin -f "$tmp\brain.db" context "release smoke" --json
+          $context = (& $bin -f "$tmp\brain.db" context "release smoke" --json) -join "`n"
           if ($context -notmatch '"context_id"') { throw "context smoke failed" }
       - name: Package and checksum
         shell: pwsh
