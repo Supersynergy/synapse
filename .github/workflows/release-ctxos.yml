@@ -100,7 +100,12 @@ jobs:
       - name: Build portable Rust binary
         run: |
           if [ "$RUNNER_OS" = Linux ]; then
-            export CFLAGS="-D_GNU_SOURCE -include sys/types.h"
+            export CC="$GITHUB_WORKSPACE/release/synapse-memory/musl-cc.sh"
+            case "${{ matrix.target }}" in
+              x86_64-unknown-linux-musl) export SYNAPSE_MUSL_CC=x86_64-linux-musl-gcc ;;
+              aarch64-unknown-linux-musl) export SYNAPSE_MUSL_CC=aarch64-linux-musl-gcc ;;
+              *) exit 1 ;;
+            esac
           fi
           cargo build --locked --profile release-hardened \
             --target "${{ matrix.target }}" \
