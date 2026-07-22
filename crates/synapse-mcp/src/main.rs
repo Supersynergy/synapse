@@ -299,6 +299,11 @@ async fn handle(sock: &PathBuf, req: &JsonRpc) -> Result<Value> {
                 "uri": {"type": "string", "description": "Starting URI"},
                 "depth": {"type": "integer", "default": 3, "description": "Max forward depth (cap 20)"}
             }, "required": ["uri"]}, "always_keep": true},
+            {"name": "ultra_events", "description": "Query the synapse_events log with filters. Returns recent events matching agent/kind/session/uri. Useful for replay, audit, and cost analysis. Reads brain.db directly.", "inputSchema": {"type": "object", "properties": {
+                "agent": {"type": "string"}, "kind": {"type": "string"}, "session": {"type": "string"}, "uri": {"type": "string"},
+                "limit": {"type": "integer", "default": 50}
+            }}},
+            {"name": "ultra_stats", "description": "Return brain stats (doc/event/decision/graph counts, token cost, top agents/kinds). Useful for self-inspection and dashboards. Reads brain.db directly.", "inputSchema": {"type": "object", "properties": {}}},
             // ── Low-level tools ───────────────────────────────────────────────
             {"name": "put", "description": "Append a memory.", "inputSchema": {"type": "object", "properties": {
                 "text": {"type": "string"}, "title": {"type": "string"}, "uri": {"type": "string"}, "embed": {"type": "boolean"}
@@ -392,6 +397,8 @@ async fn tool_call(sock: &PathBuf, name: &str, args: Value) -> Result<Value> {
         "session_replay" => return session_replay(sock, &args).await,
         "why" => return ultra_why(&args).await,
         "graph_expand" => return ultra_graph_expand(&args).await,
+        "ultra_events" => return ultra_events(&args).await,
+        "ultra_stats" => return ultra_stats(&args).await,
         _ => {}
     }
 
@@ -2304,6 +2311,80 @@ async fn ultra_graph_expand(args: &Value) -> Result<Value> {
         })
         .collect();
     Ok(json!({"uri": uri, "depth": depth, "expand": expand, "count": expand.len()}))
+}
+
+async fn ultra_events(args: &Value) -> Result<Value> {
+    let limit = args
+        .get("limit")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(50)
+        .clamp(1, 1000);
+    let mut filter = synapse_ultra::EventFilter::new().limit(limit);
+    if let Some(a) = args.get("agent").and_then(|v| v.as_str()) {
+        filter = filter.agent(a);
+    }
+    if let Some(k) = args.get("kind").and_then(|v| v.as_str()) {
+        filter = filter.kind(k);
+    }
+    if let Some(s) = args.get("session").and_then(|v| v.as_str()) {
+        filter = filter.session(s);
+    }
+    if let Some(u) = args.get("uri").and_then(|v| v.as_str()) {
+        filter = filter.uri(u);
+    }
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"events": [], "note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let rows = ultra.with_conn(|c| synapse_ultra::events::query_events(c, &filter))?;
+    let events: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.id,
+                "ts": r.ts,
+                "session_id": r.session_id,
+                "agent": r.agent,
+                "kind": r.kind,
+                "uri": r.uri,
+                "content": r.content,
+            })
+        })
+        .collect();
+    Ok(json!({"events": events, "count": events.len()}))
+}
+
+async fn ultra_stats(args: &Value) -> Result<Value> {
+    let _ = args;
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let stats = ultra.with_conn(synapse_ultra::observe::brain_stats)?;
+    let agents = ultra.with_conn(|c| synapse_ultra::observe::top_agents(c, 5))?;
+    let kinds = ultra.with_conn(|c| synapse_ultra::observe::top_kinds(c, 5))?;
+    Ok(json!({
+        "docs": stats.docs,
+        "events": stats.events,
+        "decisions": stats.decisions,
+        "graph_nodes": stats.graph_nodes,
+        "graph_edges": stats.graph_edges,
+        "sessions": stats.sessions,
+        "token_cost_rows": stats.token_cost_rows,
+        "total_cost_usd": stats.total_cost_usd,
+        "total_input_tokens": stats.total_input_tokens,
+        "total_output_tokens": stats.total_output_tokens,
+        "db_size_bytes": stats.db_size_bytes,
+        "ultra_schema_version": stats.ultra_schema_version,
+        "top_agents": agents,
+        "top_kinds": kinds,
+    }))
 }
 
 #[cfg(test)]

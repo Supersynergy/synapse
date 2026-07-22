@@ -90,7 +90,7 @@ impl Ultra {
     /// Adds: `synapse_events`, `graph_nodes`, `graph_edges`, `decisions`,
     /// `sessions`, `token_cost`, and the `why_chain` / `graph_expand_views` SQL views.
     pub fn migrate(&self) -> UltraResult<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn();
         schema::migrate(&conn)?;
         Ok(())
     }
@@ -102,7 +102,13 @@ impl Ultra {
     where
         F: FnOnce(&Connection) -> R,
     {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn();
         f(&conn)
+    }
+
+    /// Lock the internal mutex, recovering from poison so a prior thread
+    /// panic does not cascade into a crash on the next call.
+    fn lock_conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.conn.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
