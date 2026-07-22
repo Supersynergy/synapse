@@ -13,11 +13,10 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 rmp-serde.workspace = true
-tokio.workspace = true
+tokio = { workspace = true }
 clap.workspace = true
 synapse-pack = { path = "../synapse-pack" }
 synapse-learn = { path = "../synapse-learn" }
-rusqlite.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
