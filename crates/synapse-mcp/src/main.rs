@@ -304,6 +304,22 @@ async fn handle(sock: &PathBuf, req: &JsonRpc) -> Result<Value> {
                 "limit": {"type": "integer", "default": 50}
             }}},
             {"name": "ultra_stats", "description": "Return brain stats (doc/event/decision/graph counts, token cost, top agents/kinds). Useful for self-inspection and dashboards. Reads brain.db directly.", "inputSchema": {"type": "object", "properties": {}}},
+            {"name": "agent_trace", "description": "Trace one agent across ALL sessions within a time range. Returns chronological events (ts, session_id, kind, uri, content_preview). Use to answer 'what did agent X do recently?'. Reads brain.db directly.", "inputSchema": {"type": "object", "properties": {
+                "agent": {"type": "string", "description": "Agent name to trace"},
+                "days": {"type": "integer", "default": 1, "description": "Days back (1 = last 24h)"},
+                "limit": {"type": "integer", "default": 1000}
+            }, "required": ["agent"]}},
+            {"name": "daily_summary", "description": "Aggregated daily summary: total events/decisions/sessions/cost/tokens/graph-growth, per-agent breakdown with top_kinds + top_uris, and top 20 decisions. Use for end-of-day reviews. Reads brain.db directly.", "inputSchema": {"type": "object", "properties": {
+                "days_back": {"type": "integer", "default": 0, "description": "0 = today, 1 = yesterday, ..."}
+            }}},
+            {"name": "session_timeline", "description": "Chronological timeline for one session: events + decisions merged, ordered by ts ASC. Each row has ts, kind, agent, uri, content_preview, is_decision. Reads brain.db directly.", "inputSchema": {"type": "object", "properties": {
+                "session": {"type": "string"},
+                "limit": {"type": "integer", "default": 1000}
+            }, "required": ["session"]}},
+            {"name": "list_sessions", "description": "List all sessions with event/decision counts, first/last ts, and cost. Ordered by last_ts DESC. Optional agent filter. Reads brain.db directly.", "inputSchema": {"type": "object", "properties": {
+                "agent": {"type": "string"},
+                "limit": {"type": "integer", "default": 50}
+            }}},
             // ── Low-level tools ───────────────────────────────────────────────
             {"name": "put", "description": "Append a memory.", "inputSchema": {"type": "object", "properties": {
                 "text": {"type": "string"}, "title": {"type": "string"}, "uri": {"type": "string"}, "embed": {"type": "boolean"}
@@ -399,6 +415,10 @@ async fn tool_call(sock: &PathBuf, name: &str, args: Value) -> Result<Value> {
         "graph_expand" => return ultra_graph_expand(&args).await,
         "ultra_events" => return ultra_events(&args).await,
         "ultra_stats" => return ultra_stats(&args).await,
+        "agent_trace" => return agent_trace(&args).await,
+        "daily_summary" => return daily_summary(&args).await,
+        "session_timeline" => return session_timeline(&args).await,
+        "list_sessions" => return list_sessions(&args).await,
         _ => {}
     }
 
@@ -2385,6 +2405,142 @@ async fn ultra_stats(args: &Value) -> Result<Value> {
         "top_agents": agents,
         "top_kinds": kinds,
     }))
+}
+
+async fn agent_trace(args: &Value) -> Result<Value> {
+    let agent = args
+        .get("agent")
+        .and_then(|v| v.as_str())
+        .context("agent_trace requires agent")?;
+    let days = args
+        .get("days")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1)
+        .clamp(0, 365);
+    let limit = args
+        .get("limit")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1000)
+        .clamp(1, 10000);
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"trace": [], "note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let now = chrono::Utc::now().timestamp();
+    let since = now - days * 86400;
+    let rows = ultra.with_conn(|c| {
+        synapse_ultra::observe::agent_trace(c, agent, since, now, limit)
+    })?;
+    let trace: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "ts": r.ts,
+                "session_id": r.session_id,
+                "kind": r.kind,
+                "uri": r.uri,
+                "content_preview": r.content_preview,
+            })
+        })
+        .collect();
+    Ok(json!({"agent": agent, "since_ts": since, "until_ts": now, "trace": trace, "count": trace.len()}))
+}
+
+async fn daily_summary(args: &Value) -> Result<Value> {
+    let days_back = args
+        .get("days_back")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0)
+        .clamp(0, 365);
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let now = chrono::Utc::now().timestamp();
+    let day_end = now - days_back * 86400;
+    let day_start = day_end - 86400;
+    let s = ultra.with_conn(|c| {
+        synapse_ultra::observe::daily_summary(c, day_start, day_end)
+    })?;
+    // Serialize via serde_json::to_value to preserve nested structure
+    let v = serde_json::to_value(&s).unwrap_or_else(|_| json!({}));
+    Ok(json!({"day_start_ts": day_start, "day_end_ts": day_end, "summary": v}))
+}
+
+async fn session_timeline(args: &Value) -> Result<Value> {
+    let session = args
+        .get("session")
+        .and_then(|v| v.as_str())
+        .context("session_timeline requires session")?;
+    let limit = args
+        .get("limit")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1000)
+        .clamp(1, 10000);
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"timeline": [], "note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let rows = ultra.with_conn(|c| {
+        synapse_ultra::observe::session_timeline(c, session, limit)
+    })?;
+    let timeline: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "ts": r.ts,
+                "kind": r.kind,
+                "agent": r.agent,
+                "uri": r.uri,
+                "content_preview": r.content_preview,
+                "is_decision": r.is_decision,
+            })
+        })
+        .collect();
+    Ok(json!({"session": session, "timeline": timeline, "count": timeline.len()}))
+}
+
+async fn list_sessions(args: &Value) -> Result<Value> {
+    let agent = args.get("agent").and_then(|v| v.as_str());
+    let limit = args
+        .get("limit")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(50)
+        .clamp(1, 1000);
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"sessions": [], "note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let rows = ultra.with_conn(|c| {
+        synapse_ultra::observe::list_sessions(c, agent, limit)
+    })?;
+    let sessions: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "session_id": r.session_id,
+                "agent": r.agent,
+                "events": r.events,
+                "decisions": r.decisions,
+                "first_ts": r.first_ts,
+                "last_ts": r.last_ts,
+                "cost_usd": r.cost_usd,
+            })
+        })
+        .collect();
+    Ok(json!({"sessions": sessions, "count": sessions.len()}))
 }
 
 #[cfg(test)]

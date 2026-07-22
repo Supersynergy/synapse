@@ -113,6 +113,36 @@ enum Cmd {
         #[arg(long, default_value_t = 100)]
         limit: i64,
     },
+    /// Trace one agent across all sessions within a time range.
+    Trace {
+        #[arg(long)]
+        agent: String,
+        /// Days back (default 1 = last 24h).
+        #[arg(long, default_value_t = 1)]
+        days: i64,
+        #[arg(long, default_value_t = 1000)]
+        limit: i64,
+    },
+    /// Daily summary: what happened on a given day?
+    Daily {
+        /// Days back (0 = today, 1 = yesterday, ...). Default 0.
+        #[arg(long, default_value_t = 0)]
+        days_back: i64,
+    },
+    /// Session timeline: chronological events + decisions for one session.
+    Timeline {
+        #[arg(long)]
+        session: String,
+        #[arg(long, default_value_t = 1000)]
+        limit: i64,
+    },
+    /// List all sessions with event/decision counts and cost.
+    Sessions {
+        #[arg(long)]
+        agent: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: i64,
+    },
     /// Optional DuckLake archive operations.
     #[command(subcommand)]
     Lake(LakeCmd),
@@ -355,6 +385,103 @@ fn run() -> Result<()> {
             println!("  db: {} ({} bytes)", db.display(), stats.db_size_bytes);
             println!("  ultra schema: v{}", stats.ultra_schema_version);
             println!("  duckdb CLI: {}", if synapse_ultra::lake::duckdb_available() { "available" } else { "NOT found (optional)" });
+        }
+        Cmd::Trace { agent, days, limit } => {
+            ultra.migrate()?;
+            let now = chrono::Utc::now().timestamp();
+            let since = now - days * 86400;
+            let rows = ultra.with_conn(|c| {
+                synapse_ultra::observe::agent_trace(c, &agent, since, now, limit)
+            })?;
+            if rows.is_empty() {
+                println!("ultra: trace — no events for agent '{agent}' in last {days}d");
+                return Ok(());
+            }
+            println!("# agent trace: {agent} (last {days}d, {} events)", rows.len());
+            for r in rows {
+                let sess = r.session_id.as_deref().unwrap_or("-");
+                let uri = r.uri.as_deref().unwrap_or("-");
+                let preview = r.content_preview.as_deref().unwrap_or("");
+                let preview = if preview.len() > 80 { &preview[..80] } else { preview };
+                println!("{}\t{}\t{}\t{}\t{}", r.ts, sess, r.kind, uri, preview);
+            }
+        }
+        Cmd::Daily { days_back } => {
+            ultra.migrate()?;
+            let now = chrono::Utc::now().timestamp();
+            let day_end = now - days_back * 86400;
+            let day_start = day_end - 86400;
+            let s = ultra.with_conn(|c| {
+                synapse_ultra::observe::daily_summary(c, day_start, day_end)
+            })?;
+            println!("# daily summary — day -{}d  [{} .. {}]", days_back, day_start, day_end);
+            println!("events:       {}", s.total_events);
+            println!("decisions:    {}", s.total_decisions);
+            println!("sessions:     {}", s.total_sessions);
+            println!("cost_usd:     {:.4}", s.total_cost_usd);
+            println!("tokens:       in={} out={}", s.total_input_tokens, s.total_output_tokens);
+            println!("graph_growth: +{} nodes +{} edges", s.new_graph_nodes, s.new_graph_edges);
+            println!();
+            println!("## agents ({}):", s.agents.len());
+            for a in &s.agents {
+                println!("  {}:", a.agent);
+                println!("    events={} decisions={} sessions={} cost=${:.4}", a.events, a.decisions, a.sessions, a.cost_usd);
+                println!("    tokens: in={} out={}", a.input_tokens, a.output_tokens);
+                println!("    first_ts={} last_ts={}", a.first_ts, a.last_ts);
+                if !a.top_kinds.is_empty() {
+                    let kinds = a.top_kinds.iter().map(|(k, c)| format!("{k}={c}")).collect::<Vec<_>>().join(" ");
+                    println!("    top_kinds: {kinds}");
+                }
+                if !a.top_uris.is_empty() {
+                    let uris = a.top_uris.iter().map(|(u, c)| format!("{u}={c}")).collect::<Vec<_>>().join(" ");
+                    println!("    top_uris:  {uris}");
+                }
+            }
+            if !s.top_decisions.is_empty() {
+                println!();
+                println!("## top decisions ({}):", s.top_decisions.len());
+                for d in &s.top_decisions {
+                    let rat = d.rationale.as_deref().unwrap_or("-");
+                    let rat = if rat.len() > 80 { &rat[..80] } else { rat };
+                    println!("  {}d#{}  agent={}  uri={}", d.ts, d.id, d.agent, d.uri);
+                    if let Some(src) = &d.source_uri { println!("    source: {src}"); }
+                    if let Some(tgt) = &d.target_uri { println!("    target: {tgt}"); }
+                    println!("    rationale: {rat}");
+                }
+            }
+        }
+        Cmd::Timeline { session, limit } => {
+            ultra.migrate()?;
+            let rows = ultra.with_conn(|c| {
+                synapse_ultra::observe::session_timeline(c, &session, limit)
+            })?;
+            if rows.is_empty() {
+                println!("ultra: timeline — no events for session '{session}'");
+                return Ok(());
+            }
+            println!("# session timeline: {session} ({} rows)", rows.len());
+            for r in rows {
+                let marker = if r.is_decision { "DECISION" } else { "event" };
+                let uri = r.uri.as_deref().unwrap_or("-");
+                let preview = r.content_preview.as_deref().unwrap_or("");
+                let preview = if preview.len() > 80 { &preview[..80] } else { preview };
+                println!("{}\t{}\t{}\t{}\t{}\t{}", r.ts, marker, r.agent, r.kind, uri, preview);
+            }
+        }
+        Cmd::Sessions { agent, limit } => {
+            ultra.migrate()?;
+            let rows = ultra.with_conn(|c| {
+                synapse_ultra::observe::list_sessions(c, agent.as_deref(), limit)
+            })?;
+            if rows.is_empty() {
+                println!("ultra: sessions — no sessions found");
+                return Ok(());
+            }
+            println!("# sessions ({}):", rows.len());
+            println!("session_id\tagent\tevents\tdecisions\tfirst_ts\tlast_ts\tcost_usd");
+            for r in rows {
+                println!("{}\t{}\t{}\t{}\t{}\t{}\t{:.4}", r.session_id, r.agent, r.events, r.decisions, r.first_ts, r.last_ts, r.cost_usd);
+            }
         }
     }
     Ok(())

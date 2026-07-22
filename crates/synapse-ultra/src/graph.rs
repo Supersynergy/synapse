@@ -8,6 +8,7 @@
 
 use crate::UltraResult;
 use rusqlite::{params, Connection};
+use std::collections::HashSet;
 
 /// A node in the graph.
 #[derive(Debug, Clone)]
@@ -78,63 +79,154 @@ pub fn upsert_edge(
 /// `why(uri, max_depth)` — backward chain: what caused this URI?
 ///
 /// Returns steps ordered by depth ascending (0 = the starting node, 1 = direct
-/// causes, etc.). Uses a parameterized recursive CTE anchored at `uri`.
+/// causes, etc.). Traversal is done in Rust with a `HashSet` visited-set —
+/// O(depth) cycle checks, not O(depth²) like the recursive-CTE path-string
+/// approach. SQL is only used for edge lookups (indexed by `idx_graph_edges_to_rel`).
 pub fn why(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult<Vec<WhyStep>> {
-    let sql = r#"
-WITH RECURSIVE chain(uri, kind, depth, path) AS (
-    SELECT uri, kind, 0, uri FROM graph_nodes WHERE uri = ?1
-    UNION ALL
-    SELECT e.from_uri, n.kind, c.depth + 1, c.path || ' <- ' || e.from_uri
-    FROM chain c
-    JOIN graph_edges e ON e.to_uri = c.uri
-    JOIN graph_nodes n ON n.uri = e.from_uri
-    WHERE c.depth < ?2 AND e.rel IN ('caused', 'derived_from', 'depends_on')
-)
-SELECT uri, kind, depth, path FROM chain ORDER BY depth ASC, uri ASC
-"#;
-    let mut stmt = conn.prepare(sql)?;
-    let rows = stmt.query_map(params![uri, max_depth], |row| {
-        Ok(WhyStep {
-            uri: row.get(0)?,
-            kind: row.get(1)?,
-            depth: row.get(2)?,
-            path: row.get(3)?,
-        })
-    })?;
-    let mut out = Vec::new();
-    for r in rows {
-        out.push(r?);
+    if max_depth <= 0 {
+        return Ok(Vec::new());
     }
+    // Anchor: get the starting node.
+    let anchor: Option<(String, String)> = conn
+        .query_row(
+            "SELECT uri, kind FROM graph_nodes WHERE uri = ?1",
+            params![uri],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok();
+    let (start_uri, start_kind) = match anchor {
+        Some(v) => v,
+        None => return Ok(Vec::new()),
+    };
+
+    let mut visited: HashSet<String> = HashSet::new();
+    visited.insert(start_uri.clone());
+    let mut out = Vec::new();
+    out.push(WhyStep {
+        uri: start_uri.clone(),
+        kind: start_kind.clone(),
+        depth: 0,
+        path: start_uri.clone(),
+    });
+
+    // BFS frontier: Vec<(uri, kind, depth, path)>.
+    let mut frontier: Vec<(String, String, i64, String)> =
+        vec![(start_uri.clone(), start_kind.clone(), 0, start_uri.clone())];
+
+    let edge_sql = r#"
+        SELECT e.from_uri, n.kind
+        FROM graph_edges e
+        JOIN graph_nodes n ON n.uri = e.from_uri
+        WHERE e.to_uri = ?1 AND e.rel IN ('caused', 'derived_from', 'depends_on')
+        ORDER BY e.from_uri ASC
+    "#;
+
+    while !frontier.is_empty() {
+        let mut next: Vec<(String, String, i64, String)> = Vec::new();
+        for (cur_uri, _cur_kind, depth, path) in &frontier {
+            if *depth >= max_depth - 1 {
+                continue;
+            }
+            let mut stmt = conn.prepare(edge_sql)?;
+            let rows = stmt.query_map(params![cur_uri], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            for r in rows {
+                let (n_uri, n_kind) = r?;
+                if visited.insert(n_uri.clone()) {
+                    let new_path = format!("{path} <- {n_uri}");
+                    out.push(WhyStep {
+                        uri: n_uri.clone(),
+                        kind: n_kind.clone(),
+                        depth: depth + 1,
+                        path: new_path.clone(),
+                    });
+                    next.push((n_uri, n_kind, depth + 1, new_path));
+                }
+            }
+        }
+        frontier = next;
+    }
+
+    out.sort_by(|a, b| {
+        a.depth
+            .cmp(&b.depth)
+            .then_with(|| a.uri.cmp(&b.uri))
+    });
     Ok(out)
 }
 
 /// `graph_expand(uri, max_depth)` — forward chain: what does this URI lead to?
+/// Rust-side BFS with `HashSet` visited-set (O(depth) cycle check).
 pub fn graph_expand(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult<Vec<WhyStep>> {
-    let sql = r#"
-WITH RECURSIVE expand(uri, kind, depth, path) AS (
-    SELECT uri, kind, 0, uri FROM graph_nodes WHERE uri = ?1
-    UNION ALL
-    SELECT e.to_uri, n.kind, ex.depth + 1, ex.path || ' -> ' || e.to_uri
-    FROM expand ex
-    JOIN graph_edges e ON e.from_uri = ex.uri
-    JOIN graph_nodes n ON n.uri = e.to_uri
-    WHERE ex.depth < ?2
-)
-SELECT uri, kind, depth, path FROM expand ORDER BY depth ASC, uri ASC
-"#;
-    let mut stmt = conn.prepare(sql)?;
-    let rows = stmt.query_map(params![uri, max_depth], |row| {
-        Ok(WhyStep {
-            uri: row.get(0)?,
-            kind: row.get(1)?,
-            depth: row.get(2)?,
-            path: row.get(3)?,
-        })
-    })?;
-    let mut out = Vec::new();
-    for r in rows {
-        out.push(r?);
+    if max_depth <= 0 {
+        return Ok(Vec::new());
     }
+    let anchor: Option<(String, String)> = conn
+        .query_row(
+            "SELECT uri, kind FROM graph_nodes WHERE uri = ?1",
+            params![uri],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok();
+    let (start_uri, start_kind) = match anchor {
+        Some(v) => v,
+        None => return Ok(Vec::new()),
+    };
+
+    let mut visited: HashSet<String> = HashSet::new();
+    visited.insert(start_uri.clone());
+    let mut out = Vec::new();
+    out.push(WhyStep {
+        uri: start_uri.clone(),
+        kind: start_kind.clone(),
+        depth: 0,
+        path: start_uri.clone(),
+    });
+
+    let mut frontier: Vec<(String, String, i64, String)> =
+        vec![(start_uri.clone(), start_kind.clone(), 0, start_uri.clone())];
+
+    let edge_sql = r#"
+        SELECT e.to_uri, n.kind
+        FROM graph_edges e
+        JOIN graph_nodes n ON n.uri = e.to_uri
+        WHERE e.from_uri = ?1
+        ORDER BY e.to_uri ASC
+    "#;
+
+    while !frontier.is_empty() {
+        let mut next: Vec<(String, String, i64, String)> = Vec::new();
+        for (cur_uri, _cur_kind, depth, path) in &frontier {
+            if *depth >= max_depth - 1 {
+                continue;
+            }
+            let mut stmt = conn.prepare(edge_sql)?;
+            let rows = stmt.query_map(params![cur_uri], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            for r in rows {
+                let (n_uri, n_kind) = r?;
+                if visited.insert(n_uri.clone()) {
+                    let new_path = format!("{path} -> {n_uri}");
+                    out.push(WhyStep {
+                        uri: n_uri.clone(),
+                        kind: n_kind.clone(),
+                        depth: depth + 1,
+                        path: new_path.clone(),
+                    });
+                    next.push((n_uri, n_kind, depth + 1, new_path));
+                }
+            }
+        }
+        frontier = next;
+    }
+
+    out.sort_by(|a, b| {
+        a.depth
+            .cmp(&b.depth)
+            .then_with(|| a.uri.cmp(&b.uri))
+    });
     Ok(out)
 }
 
@@ -206,20 +298,21 @@ pub fn counts(conn: &Connection) -> UltraResult<(i64, i64)> {
 }
 
 /// Export the graph around a URI as Graphviz DOT format (for `synapse graph --dot`).
+/// O(n) in path count — edges deduped via a HashSet.
 pub fn to_dot(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult<String> {
     let steps = graph_expand(conn, uri, max_depth)?;
     let mut dot = String::from("digraph synapse {\n  rankdir=LR;\n  node [shape=box];\n");
-    let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut seen_nodes: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen_edges: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     for s in &steps {
-        if seen.insert(s.uri.clone()) {
+        if seen_nodes.insert(s.uri.clone()) {
             dot.push_str(&format!("  \"{}\" [label=\"{}\"];\n", s.uri, s.uri));
         }
-    }
-    // Add edges between consecutive steps in each path
-    for s in &steps {
         let parts: Vec<&str> = s.path.split(" -> ").collect();
         for w in parts.windows(2) {
-            dot.push_str(&format!("  \"{}\" -> \"{}\";\n", w[0], w[1]));
+            if seen_edges.insert((w[0].to_string(), w[1].to_string())) {
+                dot.push_str(&format!("  \"{}\" -> \"{}\";\n", w[0], w[1]));
+            }
         }
     }
     dot.push_str("}\n");

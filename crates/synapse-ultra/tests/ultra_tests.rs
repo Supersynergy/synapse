@@ -1,7 +1,7 @@
 //! Tests for synapse-ultra.
 
 use synapse_ultra::{Ultra, EventKind, Event};
-use synapse_ultra::events::{ingest_event, ingest_decision, ingest_event_json, EventFilter};
+use synapse_ultra::events::{ingest_event, ingest_decision, ingest_event_json, ingest_events, EventFilter};
 use synapse_ultra::graph::{upsert_node, upsert_edge, why, graph_expand};
 
 fn fresh() -> Ultra {
@@ -177,4 +177,185 @@ fn ingest_jsonl_file_skips_blank_lines() {
     std::fs::write(tmp.path(), content).unwrap();
     let n = u.with_conn(|c| synapse_ultra::events::ingest_jsonl_file(c, tmp.path())).unwrap();
     assert_eq!(n, 2);
+}
+
+#[test]
+fn ingest_events_batch_dedups() {
+    let u = fresh();
+    let ev = |content: &str| Event {
+        ts: 1,
+        session_id: Some("s1".into()),
+        agent: "claude".into(),
+        kind: "message".into(),
+        uri: Some("file:x".into()),
+        content: Some(content.into()),
+        meta: None,
+    };
+    // 3 distinct + 1 duplicate of ev1
+    let batch = vec![ev("a"), ev("b"), ev("c"), ev("a")];
+    let n = u.with_conn(|c| ingest_events(c, &batch)).unwrap();
+    assert_eq!(n, 3);
+    // second batch with same events — all dedup
+    let n2 = u.with_conn(|c| ingest_events(c, &batch)).unwrap();
+    assert_eq!(n2, 0);
+}
+
+#[test]
+fn why_chain_handles_cycles() {
+    let u = fresh();
+    let ts = 1000;
+    // Build a cycle: A -> B -> C -> A
+    u.with_conn(|c| upsert_node(c, "A", "n", None, ts)).unwrap();
+    u.with_conn(|c| upsert_node(c, "B", "n", None, ts + 1)).unwrap();
+    u.with_conn(|c| upsert_node(c, "C", "n", None, ts + 2)).unwrap();
+    u.with_conn(|c| upsert_edge(c, "A", "B", "caused", 1.0, ts, None, None)).unwrap();
+    u.with_conn(|c| upsert_edge(c, "B", "C", "caused", 1.0, ts, None, None)).unwrap();
+    u.with_conn(|c| upsert_edge(c, "C", "A", "caused", 1.0, ts, None, None)).unwrap();
+    // why(C) with cycle protection — must terminate
+    let steps = u.with_conn(|c| why(c, "C", 20)).unwrap();
+    // Should return C (depth 0), B (depth 1), A (depth 2) — and NOT loop back to C
+    assert!(steps.iter().any(|s| s.uri == "C" && s.depth == 0));
+    assert!(steps.iter().any(|s| s.uri == "B" && s.depth == 1));
+    assert!(steps.iter().any(|s| s.uri == "A" && s.depth == 2));
+    // No step should have depth > 3 (cycle would produce infinite or repeated)
+    assert!(steps.iter().all(|s| s.depth <= 2));
+}
+
+#[test]
+fn decision_dedup_distinguishes_rationale() {
+    let u = fresh();
+    // Same URI + agent + session, different rationale → distinct decisions
+    let id1 = u.with_conn(|c| {
+        ingest_decision(c, 1000, Some("s"), "claude", "file:foo.rs",
+            Some("reason-A"), Some("src"), Some("tgt"), None)
+    }).unwrap();
+    let id2 = u.with_conn(|c| {
+        ingest_decision(c, 1000, Some("s"), "claude", "file:foo.rs",
+            Some("reason-B"), Some("src"), Some("tgt"), None)
+    }).unwrap();
+    assert_ne!(id1, id2, "different rationale must produce distinct decisions");
+    // Same rationale → dedup
+    let id3 = u.with_conn(|c| {
+        ingest_decision(c, 1000, Some("s"), "claude", "file:foo.rs",
+            Some("reason-A"), Some("src"), Some("tgt"), None)
+    }).unwrap();
+    assert_eq!(id1, id3);
+}
+
+#[test]
+fn to_dot_does_not_duplicate_edges() {
+    let u = fresh();
+    let ts = 1000;
+    u.with_conn(|c| upsert_node(c, "A", "n", None, ts)).unwrap();
+    u.with_conn(|c| upsert_node(c, "B", "n", None, ts)).unwrap();
+    u.with_conn(|c| upsert_edge(c, "A", "B", "caused", 1.0, ts, None, None)).unwrap();
+    let dot = u.with_conn(|c| synapse_ultra::graph::to_dot(c, "A", 5)).unwrap();
+    // Count occurrences of the edge A -> B — must be exactly 1
+    let edge_count = dot.matches("\"A\" -> \"B\"").count();
+    assert_eq!(edge_count, 1, "to_dot must not duplicate edges: {}\n{}", edge_count, dot);
+}
+
+#[test]
+fn agent_trace_returns_events_for_agent() {
+    let u = fresh();
+    let ts = 1000;
+    let mk = |agent: &str, uri: &str, sess: &str, t: i64| Event {
+        ts: t,
+        session_id: Some(sess.into()),
+        agent: agent.into(),
+        kind: EventKind::ToolCall.as_str().to_string(),
+        uri: Some(uri.into()),
+        content: Some("x".into()),
+        meta: None,
+    };
+    u.with_conn(|c| ingest_event(c, &mk("claude", "file:a.rs", "s1", ts))).unwrap();
+    u.with_conn(|c| ingest_event(c, &mk("codex", "file:b.rs", "s1", ts + 10))).unwrap();
+    u.with_conn(|c| ingest_event(c, &mk("claude", "file:c.rs", "s2", ts + 20))).unwrap();
+    let rows = u.with_conn(|c| {
+        synapse_ultra::observe::agent_trace(c, "claude", ts - 100, ts + 100, 100)
+    }).unwrap();
+    assert_eq!(rows.len(), 2, "agent_trace should return 2 claude events, got {}", rows.len());
+    assert!(rows.iter().all(|r| r.session_id.is_some()));
+}
+
+#[test]
+fn daily_summary_aggregates_totals_and_agents() {
+    let u = fresh();
+    let ts = 5000;
+    let mk = |agent: &str, uri: &str, sess: &str, t: i64| Event {
+        ts: t,
+        session_id: Some(sess.into()),
+        agent: agent.into(),
+        kind: EventKind::ToolCall.as_str().to_string(),
+        uri: Some(uri.into()),
+        content: Some("x".into()),
+        meta: None,
+    };
+    u.with_conn(|c| ingest_event(c, &mk("claude", "file:a.rs", "s1", ts))).unwrap();
+    u.with_conn(|c| ingest_event(c, &mk("codex", "file:b.rs", "s1", ts + 5))).unwrap();
+    u.with_conn(|c| {
+        ingest_decision(c, ts + 10, Some("s1"), "claude", "file:a.rs",
+            Some("why"), Some("src"), Some("tgt"), None)
+    }).unwrap();
+    let s = u.with_conn(|c| {
+        synapse_ultra::observe::daily_summary(c, ts - 100, ts + 100)
+    }).unwrap();
+    assert_eq!(s.total_events, 2, "total_events");
+    assert_eq!(s.total_decisions, 1, "total_decisions");
+    assert_eq!(s.total_sessions, 1, "total_sessions");
+    assert_eq!(s.agents.len(), 2, "per-agent breakdown should have 2 agents");
+    assert_eq!(s.top_decisions.len(), 1);
+}
+
+#[test]
+fn session_timeline_merges_events_and_decisions() {
+    let u = fresh();
+    let ts = 7000;
+    let mk = |agent: &str, uri: &str, sess: &str, t: i64| Event {
+        ts: t,
+        session_id: Some(sess.into()),
+        agent: agent.into(),
+        kind: EventKind::ToolCall.as_str().to_string(),
+        uri: Some(uri.into()),
+        content: Some("x".into()),
+        meta: None,
+    };
+    u.with_conn(|c| ingest_event(c, &mk("claude", "file:a.rs", "sx", ts))).unwrap();
+    u.with_conn(|c| {
+        ingest_decision(c, ts + 100, Some("sx"), "claude", "file:a.rs",
+            Some("rationale"), Some("src"), Some("tgt"), None)
+    }).unwrap();
+    let rows = u.with_conn(|c| {
+        synapse_ultra::observe::session_timeline(c, "sx", 100)
+    }).unwrap();
+    assert_eq!(rows.len(), 2, "timeline should have 2 rows (1 event + 1 decision)");
+    assert!(rows[0].ts <= rows[1].ts);
+    assert!(rows.iter().any(|r| r.is_decision), "timeline should contain the decision row");
+}
+
+#[test]
+fn list_sessions_orders_by_last_ts_desc() {
+    let u = fresh();
+    let ts = 9000;
+    let mk = |agent: &str, uri: &str, sess: &str, t: i64| Event {
+        ts: t,
+        session_id: Some(sess.into()),
+        agent: agent.into(),
+        kind: EventKind::ToolCall.as_str().to_string(),
+        uri: Some(uri.into()),
+        content: Some("x".into()),
+        meta: None,
+    };
+    u.with_conn(|c| ingest_event(c, &mk("claude", "file:a.rs", "s_old", ts))).unwrap();
+    u.with_conn(|c| ingest_event(c, &mk("claude", "file:b.rs", "s_new", ts + 500))).unwrap();
+    let rows = u.with_conn(|c| {
+        synapse_ultra::observe::list_sessions(c, None, 50)
+    }).unwrap();
+    assert_eq!(rows.len(), 2, "should list 2 sessions");
+    assert_eq!(rows[0].session_id, "s_new");
+    assert_eq!(rows[1].session_id, "s_old");
+    let filtered = u.with_conn(|c| {
+        synapse_ultra::observe::list_sessions(c, Some("claude"), 50)
+    }).unwrap();
+    assert_eq!(filtered.len(), 2, "agent filter claude should match both");
 }

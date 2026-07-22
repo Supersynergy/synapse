@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS synapse_events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_ts ON synapse_events(ts);
 CREATE INDEX IF NOT EXISTS idx_events_agent_ts ON synapse_events(agent, ts);
-CREATE INDEX IF NOT EXISTS idx_events_session ON synapse_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_events_session_ts ON synapse_events(session_id, ts);
 CREATE INDEX IF NOT EXISTS idx_events_kind_ts ON synapse_events(kind, ts);
 CREATE INDEX IF NOT EXISTS idx_events_uri ON synapse_events(uri);
 CREATE INDEX IF NOT EXISTS idx_events_blake3 ON synapse_events(blake3);
@@ -118,6 +118,8 @@ CREATE TABLE IF NOT EXISTS graph_edges (
 );
 CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON graph_edges(from_uri);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON graph_edges(to_uri);
+CREATE INDEX IF NOT EXISTS idx_graph_edges_to_rel ON graph_edges(to_uri, rel);
+CREATE INDEX IF NOT EXISTS idx_graph_edges_from_rel ON graph_edges(from_uri, rel);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_rel ON graph_edges(rel);
 "#,
     )?;

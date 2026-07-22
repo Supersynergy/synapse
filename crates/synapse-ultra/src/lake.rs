@@ -8,6 +8,11 @@
 //! actual DuckLake catalog is a SQLite file (`metadata.ducklake` by default)
 //! that DuckDB creates and manages.
 //!
+//! **Design note (C2):** Uses `duckdb` CLI rather than the `duckdb` Rust crate
+//! because the crate adds ~50MB to the binary and significant compile time for
+//! a path that runs rarely (archival). The CLI is fast, single-invocation, and
+//! already installed on the target machine.
+//!
 //! Usage:
 //!   - `synapse-ultra lake init` — creates the catalog + `synapse_events` table
 //!   - `synapse-ultra lake archive --older-than 90d` — moves old rows to Parquet
@@ -120,8 +125,11 @@ pub fn state(cfg: &LakeConfig) -> UltraResult<LakeState> {
     })
 }
 
-/// Archive rows older than `cutoff_ts` from `brain.db` into the DuckLake table.
-/// Returns the number of rows archived.
+/// Archive rows older than `cutoff_ts` from `brain.db` into the DuckLake table,
+/// then delete the archived rows from brain.db. Returns the number of rows archived.
+///
+/// Single duckdb invocation exports to Parquet + ingests into DuckLake. The
+/// brain.db cleanup is a separate `DELETE` on the source connection.
 pub fn archive(
     brain_db: &Path,
     cfg: &LakeConfig,
@@ -141,6 +149,7 @@ COPY (SELECT id, ts, session_id, agent, kind, uri, content, meta
       FROM brain.synapse_events WHERE ts < {cutoff}) TO '{parquet}';
 INSERT INTO synapse_lake.synapse_events
 SELECT id, ts, session_id, agent, kind, uri, content, meta FROM read_parquet('{parquet}');
+SELECT COUNT(*) FROM read_parquet('{parquet}');
 "#,
         catalog = cfg.catalog_path.display(),
         data = cfg.data_dir.display(),
@@ -159,18 +168,22 @@ SELECT id, ts, session_id, agent, kind, uri, content, meta FROM read_parquet('{p
             String::from_utf8_lossy(&out.stderr)
         )));
     }
-    // Count archived rows by querying the parquet file
-    let count_sql = format!("SELECT COUNT(*) FROM read_parquet('{}');", parquet_path.display());
-    let out = Command::new("duckdb")
-        .arg(":memory:")
-        .arg("-c")
-        .arg(&count_sql)
-        .output()?;
+    // Parse the trailing COUNT(*) from the last SELECT.
     let stdout = String::from_utf8_lossy(&out.stdout);
     let count = stdout
         .lines()
+        .rev()
         .find_map(|l| l.trim().parse::<i64>().ok())
         .unwrap_or(0);
+    // Delete archived rows from brain.db so the archive actually frees space.
+    if count > 0 {
+        let conn = rusqlite::Connection::open(brain_db)?;
+        conn.execute(
+            "DELETE FROM synapse_events WHERE ts < ?1",
+            rusqlite::params![cutoff_ts],
+        )?;
+        conn.execute("PRAGMA wal_checkpoint(PASSIVE)", [])?;
+    }
     Ok(count)
 }
 
