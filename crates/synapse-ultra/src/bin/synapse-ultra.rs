@@ -47,6 +47,27 @@ enum Cmd {
         #[arg(long)]
         jsonl: Option<std::path::PathBuf>,
     },
+    /// Ingest a decision (creates graph nodes + edges via trigger).
+    Decision {
+        /// Decision URI (the thing being decided).
+        #[arg(long)]
+        uri: String,
+        /// Agent making the decision.
+        #[arg(long)]
+        agent: String,
+        /// Optional rationale text.
+        #[arg(long)]
+        rationale: Option<String>,
+        /// Source URI (what caused this decision).
+        #[arg(long)]
+        source: Option<String>,
+        /// Target URI (what this decision produces/derives).
+        #[arg(long)]
+        target: Option<String>,
+        /// Optional session id.
+        #[arg(long)]
+        session: Option<String>,
+    },
     /// Show brain statistics.
     Inspect,
     /// Decision-chain: what caused this URI?
@@ -159,6 +180,27 @@ fn run() -> Result<()> {
                 UltraResult::Ok(n)
             })?;
             println!("ultra: ingested {count} events");
+        }
+        Cmd::Decision { uri, agent, rationale, source, target, session } => {
+            ultra.migrate()?;
+            let ts = chrono::Utc::now().timestamp();
+            let id = ultra.with_conn(|c| {
+                synapse_ultra::events::ingest_decision(
+                    c,
+                    ts,
+                    session.as_deref(),
+                    &agent,
+                    &uri,
+                    rationale.as_deref(),
+                    source.as_deref(),
+                    target.as_deref(),
+                    None,
+                )
+            })?;
+            println!("ultra: decision {id} ingested (uri={uri})");
+            if source.is_some() || target.is_some() {
+                println!("  graph nodes + edges auto-populated by trigger");
+            }
         }
         Cmd::Inspect => {
             ultra.migrate()?;

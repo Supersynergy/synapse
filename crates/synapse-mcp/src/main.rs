@@ -290,6 +290,15 @@ async fn handle(sock: &PathBuf, req: &JsonRpc) -> Result<Value> {
                 "agent_role": {"type": "string", "description": "Optional: filter to one agent role"},
                 "budget_tokens": {"type": "integer", "default": 8000}
             }, "required": ["session_id"]}},
+            // ── Synapse Ultra: graph-v2 CTE tools (read-only, direct SQLite) ──
+            {"name": "why", "description": "Backward decision-chain: what caused this URI? Returns a depth-ordered chain (0 = the starting node, 1 = direct causes, …) via a recursive SQLite CTE. Reads brain.db directly — no daemon roundtrip. Use to explain why a file/decision/concept exists.", "inputSchema": {"type": "object", "properties": {
+                "uri": {"type": "string", "description": "Starting URI (e.g. \"file:foo.rs\", \"git:<sha>\", \"decision:<id>\")"},
+                "depth": {"type": "integer", "default": 5, "description": "Max backward depth (cap 20)"}
+            }, "required": ["uri"]}, "always_keep": true},
+            {"name": "graph_expand", "description": "Forward graph traversal: what does this URI lead to? Returns nodes reachable from the starting URI via graph_edges, depth-ordered. Reads brain.db directly via recursive SQLite CTE.", "inputSchema": {"type": "object", "properties": {
+                "uri": {"type": "string", "description": "Starting URI"},
+                "depth": {"type": "integer", "default": 3, "description": "Max forward depth (cap 20)"}
+            }, "required": ["uri"]}, "always_keep": true},
             // ── Low-level tools ───────────────────────────────────────────────
             {"name": "put", "description": "Append a memory.", "inputSchema": {"type": "object", "properties": {
                 "text": {"type": "string"}, "title": {"type": "string"}, "uri": {"type": "string"}, "embed": {"type": "boolean"}
@@ -381,6 +390,8 @@ async fn tool_call(sock: &PathBuf, name: &str, args: Value) -> Result<Value> {
         "context_remember" => return context_remember(sock, &args).await,
         "session_ingest" => return session_ingest(sock, &args).await,
         "session_replay" => return session_replay(sock, &args).await,
+        "why" => return ultra_why(&args).await,
+        "graph_expand" => return ultra_graph_expand(&args).await,
         _ => {}
     }
 
@@ -2211,6 +2222,88 @@ fn json_array_to_bytes(v: Option<&Value>) -> Result<Vec<u8>> {
     arr.iter()
         .map(|b| b.as_u64().map(|n| n as u8).context("byte value"))
         .collect()
+}
+
+// ── Synapse Ultra: graph-v2 CTE tools (read-only direct SQLite) ──────────────
+//
+// `why` and `graph_expand` read brain.db directly via synapse-ultra's
+// recursive CTE queries. No daemon roundtrip — the graph tables live in
+// the same SQLite file as docs/docs_fts/docs_vec. Read-only access is safe
+// under WAL. Falls back to an empty result if the Ultra schema is not yet
+// migrated (so plain synapse-memory users don't see errors).
+
+fn ultra_brain_path() -> Result<std::path::PathBuf> {
+    std::env::var("SYNAPSE_BRAIN")
+        .map(std::path::PathBuf::from)
+        .or_else(|_| {
+            dirs_next::home_dir()
+                .map(|h| h.join(".synapse").join("brain.db"))
+                .context("SYNAPSE_BRAIN not set and $HOME not resolvable")
+        })
+}
+
+async fn ultra_why(args: &Value) -> Result<Value> {
+    let uri = args
+        .get("uri")
+        .and_then(|v| v.as_str())
+        .context("why requires uri")?;
+    let depth = args
+        .get("depth")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(5)
+        .clamp(0, 20);
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"chain": [], "note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let steps = ultra.with_conn(|c| synapse_ultra::graph::why(c, uri, depth))?;
+    let chain: Vec<Value> = steps
+        .iter()
+        .map(|s| {
+            json!({
+                "depth": s.depth,
+                "uri": s.uri,
+                "kind": s.kind,
+                "path": s.path,
+            })
+        })
+        .collect();
+    Ok(json!({"uri": uri, "depth": depth, "chain": chain, "count": chain.len()}))
+}
+
+async fn ultra_graph_expand(args: &Value) -> Result<Value> {
+    let uri = args
+        .get("uri")
+        .and_then(|v| v.as_str())
+        .context("graph_expand requires uri")?;
+    let depth = args
+        .get("depth")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(3)
+        .clamp(0, 20);
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"expand": [], "note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let steps = ultra.with_conn(|c| synapse_ultra::graph::graph_expand(c, uri, depth))?;
+    let expand: Vec<Value> = steps
+        .iter()
+        .map(|s| {
+            json!({
+                "depth": s.depth,
+                "uri": s.uri,
+                "kind": s.kind,
+                "path": s.path,
+            })
+        })
+        .collect();
+    Ok(json!({"uri": uri, "depth": depth, "expand": expand, "count": expand.len()}))
 }
 
 #[cfg(test)]

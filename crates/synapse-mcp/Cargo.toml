@@ -17,6 +17,8 @@ tokio = { workspace = true }
 clap.workspace = true
 synapse-pack = { path = "../synapse-pack" }
 synapse-learn = { path = "../synapse-learn" }
+synapse-ultra = { path = "../synapse-ultra" }
+dirs-next = "2"
 
 [dev-dependencies]
 serde_json.workspace = true
