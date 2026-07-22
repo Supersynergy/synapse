@@ -1,0 +1,37 @@
+[package]
+name = "synapse-ultra"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Synapse Ultra — event log, graph-v2 CTE, observe CLI, optional DuckLake archive. Lean extension layer for synapse-memory."
+
+[[bin]]
+name = "synapse-ultra"
+path = "src/bin/synapse-ultra.rs"
+
+[lib]
+name = "synapse_ultra"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rusqlite.workspace = true
+blake3.workspace = true
+zstd = { workspace = true, optional = true }
+chrono.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+dirs-next = "2"
+
+[features]
+default = ["zstd-compress"]
+zstd-compress = ["dep:zstd"]
+# ducklake: optional DuckLake archive support (requires duckdb CLI in PATH at runtime)
+ducklake = []
+
+[dev-dependencies]
+tempfile = "3"

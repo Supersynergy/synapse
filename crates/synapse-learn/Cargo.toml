@@ -12,7 +12,8 @@ anyhow.workspace = true
 rusqlite.workspace = true
 rand.workspace = true
 statrs.workspace = true
-synapse-core = { path = "../synapse-core" }
+serde_json.workspace = true
+synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core" }
 
 [dev-dependencies]
 tempfile = "3"

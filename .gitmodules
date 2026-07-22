@@ -1,0 +1,3 @@
+[submodule "vendor/synapse-db"]
+	path = vendor/synapse-db
+	url = /Users/master/projects/synapse-db

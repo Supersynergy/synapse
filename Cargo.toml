@@ -1,103 +1,25 @@
 [workspace]
-resolver = "2"
-members = [
-    "crates/synapse-kernel",
-    "crates/synapse-core",
-    "crates/synapse-cli",
-    "crates/synapsed",
-    "crates/synapse-mcp",
-    "crates/synapse-learn",
-    # scale-100M scaffolding (PR-0, ann core)
-    "crates/synapse-ann",
-    # SynapsQL — unified MySQL/PG-wire + Vector + FTS umbrella crate
-    "crates/synapsql",
-    # MySQL wire-protocol proxy → Synapse Store
-    "crates/synapse-mysql",
-    # Postgres wire-protocol proxy → Synapse Store
-    "crates/synapse-pg",
-    # synapse-embed-gpu = standalone workspace (fastembed feature conflict)
-    "crates/synapse-libsql",
-    "crates/synapse-raft",
-    "crates/synapse-tier",
-    "crates/synapse-quant",
-    # Merged from synapsql 2026-05-09 — WP+ops+auth+tune
-    "crates/synapse-cms",
-    "crates/synapse-ops",
-    "crates/synapse-auth",
-    "crates/synapse-tune",
-    "crates/synapse-server",
-    # bench/wp pulls mysql 26 → lru 0.12.5 (RUSTSEC-2026-0002 unsound).
-    # Excluded from default workspace; bench explicitly: `cargo bench -p synapse-cms-bench`.
-    # "bench/wp",
-    "synapsestore/crates/synapse-wal",
-    "synapsestore/crates/synapse-seg",
-    "crates/synapse-engine",
-    # Pingora HTTP frontend (benchmark: axum vs pingora) — opt-in only.
-    # NOTE: pingora-core 0.8.0 pulls daemonize/derivative (RUSTSEC unmaintained).
-    # Excluded from default workspace until pingora ≥ 0.13 publishes patched deps.
-    # Build explicitly: `cargo build -p synapse-edge` (developer opt-in).
-    # "crates/synapse-edge",
-    "crates/synapse-license",
-    # SOTA agent-memory layer (2026-04-29)
-    "crates/synapse-rerank",
-    "crates/synapse-extract",
-    "crates/synapse-temporal",
-    "crates/synapse-graph",
-    # End-to-end LongMemEval benchmark runner (rule + optional MLX hooks)
-    "bench/longmemeval",
-    # Space concept hierarchy: Space → Wing → Room → Drawer
-    "crates/synapse-space",
-    # Criterion bench: synapse-space insert+query vs ChromaDB
-    "bench/space-vs-chroma",
-    # In-process ANN recall sweep (no HTTP overhead)
-    "bench/industry",
-    # High-throughput 4-tier vector search daemon (HNSW via usearch)
-    "synapsestore/crates/synapse-ultra", "crates/synapse-fts",
-    # synapse-rank → experimental/ (6 LOC, 0 tests)
-    # ColBERT-v2 multi-vector late-interaction scaffold
-    "crates/synapse-colbert",
-    # SPLADE-v3 neural-sparse inverted-index scaffold
-    "crates/synapse-splade",
-    # Multimodal CLIP-style image+text shared embedding space (feature-gated)
-    # Default features=[] → no ort dep. Real CLIP: --features multimodal-dummy or multimodal
-    "crates/synapse-multimodal",
-    # Multi-node CRDT gossip cluster (AP, eventually consistent)
-    "crates/synapse-cluster",
-    # Production observability: OTel traces + Prometheus metrics
-    "crates/synapse-obs",
-    # Multimodal asset-DB + retrieval (images/video/audio, ComfyUI/Remotion/ffmpeg)
-    "crates/synapse-media",
-    # MUVERA RRF fusion: dense + ColBERT reciprocal-rank-fusion
-    "crates/synapse-fusion",
-    # Migration tool: import Qdrant/LanceDB/Chroma into .synx
-    "crates/synapse-migrate",
-    # Disk-tier SPANN: in-memory centroids + mmap posting-lists (unlimited corpus)
-    "crates/synapse-spann",
-    # JS/TS SDK via napi-rs — `bun add @supersynergy/synapse`
+resolver = "3"
+members = ["crates/*"]
+# Default workspace = the Context-OS product surface only. Everything below is
+# built on demand (cd into it or `-p` from its own dir), not by the default
+# `cargo check --workspace`. Rationale: docs/adr/0001-context-os-product-boundary.md.
+exclude = [
+    # substrate (vendored, built by the product crates that path-depend on it)
+    "vendor/synapse-db",
+    # language bindings — not part of the default product build
+    "crates/synapse-py",
     "crates/synapse-js",
-    # Embedded HFT/backtest engine: OHLCV + regime-vec + news-FTS + graph-entity
-    "crates/synapse-market",
-    # Distribution bindings: Python (pyo3/maturin), TS/Bun (FFI cdylib)
-    "crates/synapse-market-py",
-    "crates/synapse-market-ts",
-    # DuckDB-embedded OLAP engine — feature-gated `olap` (duckdb bundled, heavy)
-    "crates/synapse-olap",
-    # MLX Metal GPU vectorized OLAP (candle-core Metal, feature-gated `mlx-olap`)
-    "crates/synapse-mlx-olap",
-    # CDC + continuous-query streaming layer
-    "crates/synapse-stream",
-    # GreptimeDB-pattern lite time-series columnar store (Arrow/Parquet, feature-gated)
-    "crates/synapse-tsdb",
-    # io_uring storage engine — Linux only, TigerBeetle-pattern (feature: io-uring)
-    "crates/synapse-iouring",
-    # Cranelift-JIT query compiler (feature-gated `jit`)
-    "crates/synapse-jit",
-    # HFT-pattern in-memory ring buffer + background SQLite snapshot
-    "crates/synapse-ring",
-    # WiscKey-pattern: separate key-LSM from value-log (5× write-amp reduction)
-    "crates/synapse-vlog",
-    # E2E integration tests wiring 10+ crates
-    "crates/synapse-e2e",
+    # platform / GPU backends — feature-gated, opt-in
+    "crates/synapse-metal",
+    "crates/synapse-embed-gpu",
+    # advanced retrieval research — not in the 6-command product surface
+    "crates/synapse-colbert",
+    "crates/synapse-splade",
+    "crates/synapse-fusion",
+    # multimodal / media — SPEC: "multimodal surfaces are not default release claims"
+    "crates/synapse-multimodal",
+    "crates/synapse-media",
 ]
 
 [workspace.metadata]
@@ -121,12 +43,12 @@ experimental-members = [
 ]
 
 [workspace.package]
-version = "1.0.1-rc.1"
-edition = "2021"
+version = "2.0.0"
+edition = "2024"
 authors = ["Maxim Supersynergy <true@supersynergy.de>"]
 license = "MIT"
 repository = "https://github.com/Supersynergy/synapse"
-
+rust-version = "1.95"
 [workspace.dependencies]
 anyhow = "1"
 thiserror = "2"
@@ -140,7 +62,7 @@ zstd = "0.13"
 blake3 = "1"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive", "env"] }
 fastembed = { version = "5", default-features = false, features = ["ort-download-binaries-rustls-tls", "hf-hub-rustls-tls"] }
 # For Linux cross-compile, use: fastembed-dynamic = { package = "fastembed", version = "5", default-features = false, features = ["ort-load-dynamic", "hf-hub-rustls-tls"] }
