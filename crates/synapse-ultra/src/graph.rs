@@ -127,7 +127,9 @@ pub fn why(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult<Vec<WhyS
             if *depth >= max_depth - 1 {
                 continue;
             }
-            let mut stmt = conn.prepare(edge_sql)?;
+            // prepare_cached: rusqlite reuses the prepared statement across
+            // iterations — avoids re-parsing edge_sql per BFS step.
+            let mut stmt = conn.prepare_cached(edge_sql)?;
             let rows = stmt.query_map(params![cur_uri], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })?;
@@ -201,7 +203,7 @@ pub fn graph_expand(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult
             if *depth >= max_depth - 1 {
                 continue;
             }
-            let mut stmt = conn.prepare(edge_sql)?;
+            let mut stmt = conn.prepare_cached(edge_sql)?;
             let rows = stmt.query_map(params![cur_uri], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })?;

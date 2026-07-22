@@ -172,8 +172,14 @@ async fn main() -> Result<()> {
                 continue;
             }
         };
+        // JSON-RPC 2.0: notifications (id missing or null) get no response.
+        // Replying with id:null breaks strict clients (mcp-proxy/pydantic).
+        let is_notification = req.id.is_none() || matches!(req.id, Some(Value::Null));
         let id = req.id.clone().unwrap_or(Value::Null);
         let resp = handle(&cli.sock, &req).await;
+        if is_notification {
+            continue;
+        }
         let out = match resp {
             Ok(v) => JsonRpcResp {
                 jsonrpc: "2.0",

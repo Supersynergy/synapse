@@ -16,7 +16,7 @@ fn migrate_is_idempotent() {
     u.migrate().unwrap();
     u.migrate().unwrap(); // second call must not error
     let v = u.with_conn(|c| synapse_ultra::schema::schema_version(c));
-    assert_eq!(v, 1);
+    assert_eq!(v, 2);
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn brain_stats_returns_counts() {
     u.with_conn(|c| ingest_event(c, &e)).unwrap();
     let stats = u.with_conn(|c| synapse_ultra::observe::brain_stats(c)).unwrap();
     assert_eq!(stats.events, 1);
-    assert_eq!(stats.ultra_schema_version, 1);
+    assert_eq!(stats.ultra_schema_version, 2);
 }
 
 #[test]
@@ -358,4 +358,45 @@ fn list_sessions_orders_by_last_ts_desc() {
         synapse_ultra::observe::list_sessions(c, Some("claude"), 50)
     }).unwrap();
     assert_eq!(filtered.len(), 2, "agent filter claude should match both");
+}
+
+#[test]
+fn search_events_fts5_finds_terms() {
+    let u = fresh();
+    let mk = |content: &str| Event {
+        ts: 1000,
+        session_id: Some("s1".into()),
+        agent: "claude".into(),
+        kind: EventKind::Message.as_str().to_string(),
+        uri: Some("file:x".into()),
+        content: Some(content.into()),
+        meta: None,
+    };
+    u.with_conn(|c| ingest_event(c, &mk("refactored bar module"))).unwrap();
+    u.with_conn(|c| ingest_event(c, &mk("unrelated baz work"))).unwrap();
+    u.with_conn(|c| ingest_event(c, &mk("another refactor pass"))).unwrap();
+
+    let hits = u.with_conn(|c| synapse_ultra::events::search_events(c, "refactor", None)).unwrap();
+    assert!(!hits.is_empty(), "FTS5 should find 'refactor' matches");
+    assert!(hits.iter().all(|r| r.content.as_deref().unwrap_or("").contains("refactor")));
+}
+
+#[test]
+fn ingest_events_batch_with_prepared_stmt() {
+    let u = fresh();
+    let mk = |i: i64| Event {
+        ts: 1000 + i,
+        session_id: Some("s1".into()),
+        agent: "claude".into(),
+        kind: EventKind::Message.as_str().to_string(),
+        uri: Some(format!("file:{i}")),
+        content: Some(format!("content-{i}")),
+        meta: None,
+    };
+    let batch: Vec<Event> = (0..100).map(mk).collect();
+    let n = u.with_conn(|c| ingest_events(c, &batch)).unwrap();
+    assert_eq!(n, 100);
+    // re-ingest → all dedup
+    let n2 = u.with_conn(|c| ingest_events(c, &batch)).unwrap();
+    assert_eq!(n2, 0);
 }

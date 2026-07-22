@@ -8,7 +8,7 @@ use crate::UltraResult;
 use rusqlite::Connection;
 
 /// Current Synapse Ultra schema version. Bump when adding new tables/columns.
-pub const ULTRA_SCHEMA_VERSION: u32 = 1;
+pub const ULTRA_SCHEMA_VERSION: u32 = 2;
 
 /// Run the idempotent migration. Creates all Ultra tables, indexes, views,
 /// and triggers. Safe to call on a fresh DB or an existing synapse-memory brain.db.
@@ -205,6 +205,40 @@ END;
 "#,
     )?;
 
+    // --- FTS5 full-text index on synapse_events.content ---
+    // External-content FTS5: the index references rows in synapse_events by
+    // rowid, so dedup / compression / existing indexes stay untouched. Triggers
+    // keep the index in sync on INSERT / UPDATE / DELETE. Query via
+    // `events::search_events`.
+    conn.execute_batch(
+        r#"
+CREATE VIRTUAL TABLE IF NOT EXISTS synapse_events_fts
+USING fts5(content, content='synapse_events', content_rowid='id', tokenize='porter unicode61');
+
+CREATE TRIGGER IF NOT EXISTS trg_events_ai_fts
+AFTER INSERT ON synapse_events
+WHEN new.content IS NOT NULL
+BEGIN
+    INSERT INTO synapse_events_fts(rowid, content) VALUES (new.id, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_events_ad_fts
+AFTER DELETE ON synapse_events
+WHEN old.content IS NOT NULL
+BEGIN
+    INSERT INTO synapse_events_fts(synapse_events_fts, rowid, content) VALUES ('delete', old.id, old.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_events_au_fts
+AFTER UPDATE ON synapse_events
+WHEN old.content IS NOT NULL OR new.content IS NOT NULL
+BEGIN
+    INSERT INTO synapse_events_fts(synapse_events_fts, rowid, content) VALUES ('delete', old.id, old.content);
+    INSERT INTO synapse_events_fts(rowid, content) VALUES (new.id, new.content);
+END;
+"#,
+    )?;
+
     // Record schema version in the meta table (if it exists from synapse-core,
     // we use a separate key to avoid clashing with synapse-core's schema_version).
     conn.execute_batch(
@@ -213,9 +247,14 @@ CREATE TABLE IF NOT EXISTS meta (
     k TEXT PRIMARY KEY,
     v TEXT NOT NULL
 );
-INSERT OR IGNORE INTO meta(k, v) VALUES ('ultra_schema_version', '1');
+INSERT OR IGNORE INTO meta(k, v) VALUES ('ultra_schema_version', '2');
 "#,
     )?;
+
+    // PRAGMA optimize (SQLite 3.43+) — records query-planner hints in
+    // sqlite_stat1 so subsequent connections pick better plans. Cheap to
+    // run at end of migration; no-op on versions that predate it.
+    let _ = conn.pragma_update(None, "optimize", 0_i64);
 
     Ok(())
 }

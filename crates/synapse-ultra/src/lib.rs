@@ -41,9 +41,9 @@ pub use observe::{
     SessionRow, SessionTimelineRow,
 };
 
+use parking_lot::Mutex;
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static MEM_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -97,7 +97,7 @@ impl ConnPool {
     }
 
     fn get(&self) -> UltraResult<Connection> {
-        let mut guard = self.conns.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.conns.lock();
         if let Some(c) = guard.pop() {
             return Ok(c);
         }
@@ -109,7 +109,7 @@ impl ConnPool {
     }
 
     fn put(&self, conn: Connection) {
-        let mut guard = self.conns.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.conns.lock();
         if guard.len() < self.max_size {
             guard.push(conn);
         }
@@ -117,7 +117,7 @@ impl ConnPool {
     }
 
     fn size(&self) -> usize {
-        self.conns.lock().unwrap_or_else(|e| e.into_inner()).len()
+        self.conns.lock().len()
     }
 }
 
