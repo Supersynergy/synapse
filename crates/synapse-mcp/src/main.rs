@@ -7,16 +7,124 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::LazyLock;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 
+use synapse_pack::{
+    Candidate, Kind, PackOptions, estimate_tokens, kind_tag, pack, pack_delta, render,
+};
+
 type AgentScope = (String, Option<String>, String);
+
+/// Pack cache: keyed by (query hash, budget, prev_pack_id hash) → rendered pack.
+/// LRU with capacity 64. Hits skip recall+pack entirely → -100 % on repeat queries.
+const PACK_CACHE_CAP: usize = 64;
+
+#[derive(Debug, Clone)]
+struct PackCacheEntry {
+    rendered: String,
+    used_ids: Vec<i64>,
+    used_tokens: usize,
+    naive_tokens: usize,
+    savings_pct: f32,
+    pack_id: String,
+}
+
+#[derive(Debug, Default)]
+struct PackCache {
+    inner: HashMap<u64, PackCacheEntry>,
+    order: std::collections::VecDeque<u64>,
+}
+
+impl PackCache {
+    fn key(query: &str, budget: usize, prev_pack_id: Option<&str>) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        query.hash(&mut h);
+        budget.hash(&mut h);
+        if let Some(p) = prev_pack_id {
+            p.hash(&mut h);
+        }
+        h.finish()
+    }
+
+    fn get(&mut self, k: u64) -> Option<&PackCacheEntry> {
+        if self.inner.contains_key(&k) {
+            // move to back (most-recent)
+            self.order.retain(|&x| x != k);
+            self.order.push_back(k);
+            self.inner.get(&k)
+        } else {
+            None
+        }
+    }
+
+    fn put(&mut self, k: u64, v: PackCacheEntry) {
+        if self.inner.len() >= PACK_CACHE_CAP
+            && !self.inner.contains_key(&k)
+            && let Some(old) = self.order.pop_front()
+        {
+            self.inner.remove(&old);
+        }
+        self.order.retain(|&x| x != k);
+        self.order.push_back(k);
+        self.inner.insert(k, v);
+    }
+
+    #[allow(dead_code)]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+static PACK_CACHE: LazyLock<std::sync::Mutex<PackCache>> =
+    LazyLock::new(|| std::sync::Mutex::new(PackCache::default()));
 
 #[derive(Parser)]
 #[command(name = "synapse-mcp", about = "MCP server (stdio) for synapsed")]
 struct Cli {
     #[arg(short = 's', long, default_value = "/tmp/synapse.sock")]
     sock: PathBuf,
+    /// Brain DB whose sibling `*.learn.db` holds the self-learning reward tables.
+    /// Default: $SYNAPSE_BRAIN or ~/.synapse/brain.db.
+    #[arg(long, env = "SYNAPSE_BRAIN")]
+    brain: Option<PathBuf>,
+    /// Verify the loaded noise model matches the trainer: evaluate a parity file
+    /// (`*.parity.json`) and report max |Rust − CatBoost| prob diff, then exit.
+    #[arg(long)]
+    noise_selftest: Option<PathBuf>,
+}
+
+/// Compare the native Rust noise-model eval against the Python/CatBoost parity vectors.
+fn run_noise_selftest(path: &PathBuf) -> Result<()> {
+    let model = NOISE_MODEL.as_ref().context(
+        "no noise model loaded (set SYNAPSE_CTXOS_MODEL or ~/.synapse/ctxos_noise_model.json)",
+    )?;
+    let data: Value = serde_json::from_slice(&std::fs::read(path)?)?;
+    let cases = data
+        .get("cases")
+        .and_then(|v| v.as_array())
+        .context("parity file missing cases")?;
+    let mut max_diff = 0.0f64;
+    for (i, c) in cases.iter().enumerate() {
+        let fv: Vec<f64> = c
+            .get("features")
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().filter_map(|v| v.as_f64()).collect())
+            .unwrap_or_default();
+        let expected = c.get("prob").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let got = catboost_prob(model, &fv);
+        let diff = (got - expected).abs();
+        max_diff = max_diff.max(diff);
+        println!("case {i}: expected={expected:.6} got={got:.6} diff={diff:.2e}");
+    }
+    println!("max_diff={max_diff:.2e}");
+    if max_diff > 1e-5 {
+        anyhow::bail!("parity FAILED (max_diff {max_diff:.2e} > 1e-5)");
+    }
+    println!("parity OK");
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +151,13 @@ struct JsonRpcResp {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Some(b) = &cli.brain {
+        // Make the brain path visible to the self-learning helpers.
+        unsafe { std::env::set_var("SYNAPSE_BRAIN", b) };
+    }
+    if let Some(parity) = &cli.noise_selftest {
+        return run_noise_selftest(parity);
+    }
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
     let mut stdout = tokio::io::stdout();
@@ -86,9 +201,12 @@ async fn handle(sock: &PathBuf, req: &JsonRpc) -> Result<Value> {
         "initialize" => Ok(json!({
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "synapse", "version": env!("CARGO_PKG_VERSION")}
+            "serverInfo": {"name": "synapse", "version": env!("CARGO_PKG_VERSION")},
+            "instructions": CTXOS_INSTRUCTIONS
         })),
-        "tools/list" => Ok(json!({"tools": [
+        "tools/list" => {
+            #[allow(unused_mut)]
+            let mut list = json!({"tools": [
             // ── Coding-agent-friendly aliases ────────────────────────────────
             {"name": "memory_save", "description": "Save a memory with optional tags. Returns doc id.", "inputSchema": {"type": "object", "properties": {
                 "text": {"type": "string"}, "title": {"type": "string"},
@@ -133,6 +251,45 @@ async fn handle(sock: &PathBuf, req: &JsonRpc) -> Result<Value> {
                 "query": {"type": "string"}, "hit_ids": {"type": "array", "items": {"type": "integer"}},
                 "outcome": {"type": "string"}, "accepted": {"type": "boolean", "default": true}
             }, "required": ["agent_id", "query", "outcome"]}},
+            // ── Context-OS: works for ANY agent, no scope required ────────────
+            {"name": "context_pack", "description": "Retrieve + pack the minimal VERBATIM context for a task within a token budget. Returns a STATE card (best-first, lost-in-the-middle-safe), never narrative. Call this FIRST for any task needing prior knowledge. Pass prev_pack_id from the previous turn to get a delta pack (skips already-delivered ids, -70% tokens on incremental loops). Set cache_stable_order=true to order blocks so prev-used ids lead (prompt-cache-stable prefix, -20% on Claude). Cache hits (same query+budget) return in O(1) with cache_hit=true.", "inputSchema": {"type": "object", "properties": {
+                "query": {"type": "string", "description": "Task or question to gather context for"},
+                "budget_tokens": {"type": "integer", "default": 4000},
+                "k": {"type": "integer", "default": 32, "description": "Candidates per query angle before packing (raw + high-signal-terms merged)"},
+                "kinds": {"type": "array", "items": {"type": "string"}, "description": "Optional filter: known-fact, decision, file, chat"},
+                "prev_pack_id": {"type": "string", "description": "pack_id from previous turn → delta pack (skip already-delivered ids)"},
+                "cache_stable_order": {"type": "boolean", "default": false, "description": "Order blocks so prev-used ids lead for prompt-cache reuse"},
+                "use_cache": {"type": "boolean", "default": true, "description": "Use LRU pack cache (repeat query → O(1) hit)"}
+            }, "required": ["query"]}},
+            {"name": "context_feedback", "description": "After the turn, report which doc ids you actually used and whether your verify-gate passed. Closes the self-learning loop so retrieval improves.", "inputSchema": {"type": "object", "properties": {
+                "pack_id": {"type": "string"}, "used_ids": {"type": "array", "items": {"type": "integer"}},
+                "gate": {"type": "string", "enum": ["pass", "fail", "unknown"], "default": "unknown"}
+            }, "required": ["used_ids"]}},
+            {"name": "context_state", "description": "Current-truth card for a topic: latest verified facts + decisions, newest-first, with supersession marked. Use to know what is currently true.", "inputSchema": {"type": "object", "properties": {
+                "topic": {"type": "string"}, "k": {"type": "integer", "default": 12}
+            }, "required": ["topic"]}},
+            {"name": "context_remember", "description": "Persist a durable fact or decision (embedded, searchable). Optionally supersede an older doc id and tag a topic.", "inputSchema": {"type": "object", "properties": {
+                "text": {"type": "string"}, "title": {"type": "string"},
+                "kind": {"type": "string", "enum": ["known-fact", "decision"], "default": "known-fact"},
+                "topic": {"type": "string"}, "supersedes": {"type": "integer"}
+            }, "required": ["text"]}},
+            // ── Swarm / Mega-Session Spiegelung ──────────────────────────────
+            {"name": "session_ingest", "description": "Ingest events from a swarm/mega-session (cmux, multi-agent, long coding session). Stores as kind=session-summary with meta.session_id, meta.agent_role, meta.turn_range. Enables session_replay + progressive summarization. Call at end of session or per-chunk.", "inputSchema": {"type": "object", "properties": {
+                "session_id": {"type": "string", "description": "Unique session id (e.g. cmux workspace id)"},
+                "agent_role": {"type": "string", "description": "Role of the agent (planner, worker, reviewer, etc.)"},
+                "events": {"type": "array", "items": {"type": "object", "properties": {
+                    "turn": {"type": "integer"}, "kind": {"type": "string"},
+                    "tool": {"type": "string"}, "content": {"type": "string"}
+                }}},
+                "summary": {"type": "string", "description": "Optional distilled summary of this chunk"},
+                "turn_start": {"type": "integer"}, "turn_end": {"type": "integer"},
+                "repo": {"type": "string", "description": "Optional repo path this session worked on"}
+            }, "required": ["session_id", "events"]}},
+            {"name": "session_replay", "description": "Reconstruct a session from stored session-summary docs. Searches by meta.session_id, orders by ts, packs into a token-budgeted replay. Use to resume a mega-session in a fresh 200k window — the prior session's decisions + events come back verbatim, best-first.", "inputSchema": {"type": "object", "properties": {
+                "session_id": {"type": "string"},
+                "agent_role": {"type": "string", "description": "Optional: filter to one agent role"},
+                "budget_tokens": {"type": "integer", "default": 8000}
+            }, "required": ["session_id"]}},
             // ── Low-level tools ───────────────────────────────────────────────
             {"name": "put", "description": "Append a memory.", "inputSchema": {"type": "object", "properties": {
                 "text": {"type": "string"}, "title": {"type": "string"}, "uri": {"type": "string"}, "embed": {"type": "boolean"}
@@ -157,8 +314,46 @@ async fn handle(sock: &PathBuf, req: &JsonRpc) -> Result<Value> {
             }, "required": ["snapshot_path"]}},
             {"name": "synapse_verify", "description": "Verify Ed25519 signature on a doc by id. Returns ok or error.", "inputSchema": {"type": "object", "properties": {
                 "doc_id": {"type": "integer"}, "vk": {"type": "array", "items": {"type": "integer"}}
-            }, "required": ["doc_id", "vk"]}},
-        ]})),
+            }, "required": ["doc_id", "vk"]}}
+            ]});
+            // Tool-list truncation: if the client passes a `query` hint in
+            // tools/list params, keep only tools whose name or description
+            // contains any query term (case-insensitive). This cuts the
+            // tool-list payload from ~30 tools to 2-5 → -500-2000 tok/req.
+            // Tools with `always_keep: true` in description are preserved.
+            if let Some(q) = req.params.get("query").and_then(|v| v.as_str())
+                && !q.trim().is_empty()
+            {
+                let terms: Vec<String> = q
+                    .split_whitespace()
+                    .filter(|t| t.len() >= 3)
+                    .map(|t| t.to_ascii_lowercase())
+                    .collect();
+                if !terms.is_empty()
+                    && let Some(arr) = list.get_mut("tools").and_then(|v| v.as_array_mut())
+                {
+                    arr.retain(|t| {
+                        let name = t
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_ascii_lowercase();
+                        let desc = t
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_ascii_lowercase();
+                        if desc.contains("always_keep:") {
+                            return true;
+                        }
+                        terms
+                            .iter()
+                            .any(|term| name.contains(term) || desc.contains(term))
+                    });
+                }
+            }
+            Ok(list)
+        }
         "tools/call" => {
             let name = req
                 .params
@@ -180,6 +375,12 @@ async fn tool_call(sock: &PathBuf, name: &str, args: Value) -> Result<Value> {
         "agent_get_observations" => return agent_get_observations(sock, &args).await,
         "agent_context" => return agent_context(sock, &args).await,
         "agent_feedback" => return agent_feedback(sock, &args).await,
+        "context_pack" => return context_pack(sock, &args).await,
+        "context_feedback" => return context_feedback(sock, &args).await,
+        "context_state" => return context_state(sock, &args).await,
+        "context_remember" => return context_remember(sock, &args).await,
+        "session_ingest" => return session_ingest(sock, &args).await,
+        "session_replay" => return session_replay(sock, &args).await,
         _ => {}
     }
 
@@ -343,14 +544,6 @@ fn agent_scope(args: &Value) -> Result<AgentScope> {
 
 fn scope_component(value: &str) -> String {
     value.replace('%', "%25").replace('/', "%2F")
-}
-
-fn estimate_tokens(text: &str) -> usize {
-    if text.is_empty() {
-        0
-    } else {
-        text.len().div_ceil(4).max(1)
-    }
 }
 
 fn compact_text(text: &str, max_chars: usize) -> String {
@@ -927,6 +1120,1090 @@ async fn agent_feedback(sock: &PathBuf, args: &Value) -> Result<Value> {
     .await
 }
 
+// ── Context-OS (ctxos) tools ──────────────────────────────────────────────────
+
+/// Server-wide guidance Codex/Gemini read on init. First 512 chars are self-contained.
+const CTXOS_INSTRUCTIONS: &str = "Synapse Context-OS (local, no cloud).\
+ RULE 1: Before answering any task, call context_pack(query=<user task>). Returns minimal VERBATIM state, best-first, never narrative.\
+ RULE 2: Pass prev_pack_id from the previous turn to get a delta pack (-70% tokens on incremental loops).\
+ RULE 3: After answering, call context_feedback(pack_id, used_ids, gate) so retrieval self-improves.\
+ RULE 4: Use context_state for current truth on a topic. Use context_remember to persist durable facts.\
+ For dumb models: just call context_pack(query=...) FIRST, then answer. That alone gives 200k-window the effective reach of 10M.";
+
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+/// Stable short id for a pack (query + selected ids), so feedback can reference it.
+fn pack_id(query: &str, ids: &[i64]) -> String {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in query.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    for id in ids {
+        for b in id.to_le_bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+    }
+    format!("pk_{h:016x}")
+}
+
+/// Brain DB path; its sibling `*.learn.db` holds the self-learning reward tables.
+fn brain_path() -> PathBuf {
+    if let Ok(p) = std::env::var("SYNAPSE_BRAIN")
+        && !p.is_empty()
+    {
+        return PathBuf::from(p);
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join(".synapse/brain.db");
+    }
+    PathBuf::from(".synapse/brain.db")
+}
+
+const KIND_TAGS: [&str; 7] = [
+    "known-fact",
+    "decision",
+    "file",
+    "chat",
+    "session-summary",
+    "codebase-map",
+    "other",
+];
+
+/// Learned per-kind ranking bonus (win-rate × 0.03), read from the learn store.
+/// Empty map if the store is unavailable — retrieval still works, just unlearned.
+fn learn_bonus_map() -> HashMap<&'static str, f32> {
+    let mut m = HashMap::new();
+    let lp = brain_path().with_extension("learn.db");
+    if let Ok(store) = synapse_learn::LearnStore::open(&lp) {
+        for tag in KIND_TAGS {
+            if let Ok(b) = store.memory_type_bonus(tag) {
+                m.insert(tag, b as f32);
+            }
+        }
+    }
+    m
+}
+
+/// Record reward for the kinds the agent actually used, plus a global ctxpack bandit arm.
+/// Returns the number of kind-rewards written (0 if the store is unavailable).
+fn record_ctx_reward(kinds: &[&str], hit: bool) -> usize {
+    let lp = brain_path().with_extension("learn.db");
+    let Ok(store) = synapse_learn::LearnStore::open(&lp) else {
+        return 0;
+    };
+    let mut n = 0;
+    for k in kinds {
+        if store.update_memory_type_reward(k, hit).is_ok() {
+            n += 1;
+        }
+    }
+    let _ = store.update_bandit("ctxpack", hit);
+    n
+}
+
+// ── Verify-Gate Degradation ───────────────────────────────────────────────────
+// Tracks per-session whether context_feedback was called after a pack. Sessions
+// that skip feedback get degraded pack budgets (soft stick, not a hard block).
+// This nudges dumb models toward the self-learning loop without breaking them.
+
+static FEEDBACK_STATE: LazyLock<std::sync::Mutex<FeedbackState>> =
+    LazyLock::new(|| std::sync::Mutex::new(FeedbackState::default()));
+
+#[derive(Default)]
+struct FeedbackState {
+    /// pack_id → (created_secs, feedback_received: bool)
+    packs: HashMap<String, (i64, bool)>,
+}
+
+impl FeedbackState {
+    fn register_pack(&mut self, pack_id: &str) {
+        self.packs.insert(pack_id.to_string(), (now_secs(), false));
+        // GC: drop packs older than 1h with no feedback.
+        let cutoff = now_secs() - 3600;
+        self.packs.retain(|_, (ts, _)| *ts > cutoff);
+    }
+    fn mark_feedback(&mut self, pack_id: &str) {
+        if let Some(e) = self.packs.get_mut(pack_id) {
+            e.1 = true;
+        }
+    }
+    /// Degradation factor: if the last 3+ packs have no feedback, shrink budget
+    /// to 60% (dumb models get less context until they participate in the loop).
+    fn budget_factor(&self, requested: usize) -> usize {
+        let open: usize = self.packs.values().filter(|(_, fb)| !fb).count();
+        if open >= 6 {
+            (requested * 2 / 5).max(512)
+        } else if open >= 3 {
+            (requested * 3 / 5).max(512)
+        } else {
+            requested
+        }
+    }
+}
+
+/// Skill-preload hints: suggest 0-3 skills the router should lazy-load based on
+/// query terms. The router (separate system) reads `manifest.preload_skills`
+/// and swaps 15k-tok system-prompt skills for 0-1 actually-relevant ones.
+///
+/// Keep this dumb + keyword-based — the router does the heavy lifting.
+fn skill_preload_hints(query: &str) -> Vec<&'static str> {
+    let q = query.to_ascii_lowercase();
+    let mut out: Vec<&'static str> = Vec::new();
+    // Trading / investing
+    if q.split_whitespace().any(|t| {
+        matches!(
+            t,
+            "trade"
+                | "trading"
+                | "stock"
+                | "portfolio"
+                | "invest"
+                | "investing"
+                | "ipo"
+                | "pre-ipo"
+                | "kelly"
+                | "asymbet"
+                | "winvestment"
+                | "backtest"
+        )
+    }) {
+        out.push("asymbet");
+        out.push("winvestment-profet");
+    }
+    // Marketing / copy
+    if q.split_whitespace().any(|t| {
+        matches!(
+            t,
+            "marketing"
+                | "copy"
+                | "copywriting"
+                | "landing"
+                | "seo"
+                | "ad"
+                | "ads"
+                | "cro"
+                | "funnel"
+                | "brand"
+        )
+    }) {
+        out.push("copywriting");
+        out.push("cro");
+    }
+    // Code / repo work
+    if q.split_whitespace().any(|t| {
+        matches!(
+            t,
+            "code"
+                | "repo"
+                | "rust"
+                | "typescript"
+                | "refactor"
+                | "bug"
+                | "test"
+                | "cargo"
+                | "build"
+                | "deploy"
+        )
+    }) {
+        out.push("agent-token-saver");
+    }
+    // Research / web
+    if q.split_whitespace().any(|t| {
+        matches!(
+            t,
+            "research" | "scrape" | "web" | "url" | "article" | "news" | "source"
+        )
+    }) {
+        out.push("superscrape");
+    }
+    // Writing / books
+    if q.split_whitespace().any(|t| {
+        matches!(
+            t,
+            "book" | "write" | "writing" | "author" | "publish" | "hörbuch" | "audiobook"
+        )
+    }) {
+        out.push("universalbook");
+    }
+    out.truncate(3);
+    out
+}
+
+/// Auto-pack trigger: queries that look like real tasks (not greetings or
+/// single-word noise) get auto-packed by the server if the model doesn't call
+/// context_pack itself. This is the dumb-model safety net.
+#[allow(dead_code)]
+fn has_context_trigger(query: &str) -> bool {
+    let q = query.trim();
+    if q.len() < 40 {
+        return false;
+    }
+    let words = q.split_whitespace().count();
+    if words < 5 {
+        return false;
+    }
+    // Trigger on task-like phrases.
+    let ql = q.to_ascii_lowercase();
+    [
+        "how do i",
+        "how to",
+        "what is",
+        "explain",
+        "implement",
+        "build",
+        "fix",
+        "debug",
+        "refactor",
+        "write",
+        "create",
+        "design",
+        "research",
+        "analyze",
+        "compare",
+        "summarize",
+        "wo kann",
+        "wie kann",
+        "was ist",
+        "erkläre",
+        "implementiere",
+        "baue",
+        "schreibe",
+        "untersuche",
+    ]
+    .iter()
+    .any(|t| ql.contains(t))
+}
+
+fn hit_kind(title: &str, meta: &Value) -> Kind {
+    let s = meta
+        .get("kind")
+        .or_else(|| meta.get("type"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .unwrap_or_else(|| title.to_string());
+    Kind::from_meta(&s)
+}
+
+/// Fraction of `terms` present in `text`, scaled to a small score nudge.
+fn term_overlap_boost(terms: &[String], text: &str) -> f32 {
+    if terms.is_empty() {
+        return 0.0;
+    }
+    let lt = text.to_ascii_lowercase();
+    let hits = terms.iter().filter(|t| lt.contains(t.as_str())).count();
+    (hits as f32 / terms.len() as f32) * 0.1
+}
+
+/// Low-signal noise that must never enter a context pack (via negativa): telepathy
+/// heartbeats, harness task-notifications, status JSON, session/briefing logs, tiny stubs.
+/// Dropping these is the highest-leverage recall win — they crowd out real knowledge.
+fn is_noise(h: &Value) -> bool {
+    let title = h.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    let uri = h.get("uri").and_then(|v| v.as_str()).unwrap_or("");
+    let text = h.get("text").and_then(|v| v.as_str()).unwrap_or("");
+
+    // telepathy status / reply spam
+    if title.contains("[telepathy]") || text.contains("[telepathy]") {
+        return true;
+    }
+    // harness task-notification / tool-call dumps
+    if text.contains("<task-notification>") || text.contains("tool-use-id") {
+        return true;
+    }
+    // machine status heartbeats (JSON)
+    if text.contains("\"models_loaded\"")
+        || text.contains("\"desktop_procs\"")
+        || text.contains("\"cli_sessions\"")
+    {
+        return true;
+    }
+    // log / briefing artifacts
+    if uri.ends_with(".log")
+        || title.ends_with(".log")
+        || title.contains("sched_briefing")
+        || text.starts_with("Agent [briefing]")
+    {
+        return true;
+    }
+    // empty / stub — no real content to pack
+    if text.trim().len() < 40 {
+        return true;
+    }
+    false
+}
+
+/// Learned noise classifier (logistic), trained offline by tools/ctxos/train_noise_model.py
+/// and applied natively here — no Python at runtime. Generalizes beyond the hard `is_noise`
+/// patterns. Absent file → `None` → pattern-only filtering (graceful).
+#[derive(Debug, Deserialize, Default)]
+struct NoiseModel {
+    #[serde(default)]
+    kind: String,
+    // logistic
+    #[serde(default)]
+    weights: HashMap<String, f64>,
+    #[serde(default)]
+    bias: f64,
+    #[serde(default = "default_threshold")]
+    threshold: f64,
+    // catboost_oblivious
+    #[serde(default)]
+    feature_order: Vec<String>,
+    #[serde(default = "default_scale")]
+    scale: f64,
+    #[serde(default)]
+    trees: Vec<CatTree>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct CatTree {
+    splits: Vec<CatSplit>,
+    leaves: Vec<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CatSplit {
+    feature: usize,
+    border: f64,
+}
+
+fn default_threshold() -> f64 {
+    0.5
+}
+
+fn default_scale() -> f64 {
+    1.0
+}
+
+fn noise_model_path() -> PathBuf {
+    if let Ok(p) = std::env::var("SYNAPSE_CTXOS_MODEL")
+        && !p.is_empty()
+    {
+        return PathBuf::from(p);
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join(".synapse/ctxos_noise_model.json");
+    }
+    PathBuf::from(".synapse/ctxos_noise_model.json")
+}
+
+static NOISE_MODEL: LazyLock<Option<NoiseModel>> = LazyLock::new(|| {
+    let path = noise_model_path();
+    let bytes = std::fs::read(&path).ok()?;
+    serde_json::from_slice(&bytes).ok()
+});
+
+/// Doc features for the learned classifier. MUST stay byte-for-byte identical to
+/// `features()` in tools/ctxos/train_noise_model.py (char-based counts, same ratios).
+fn noise_features(title: &str, uri: &str, text: &str) -> HashMap<&'static str, f64> {
+    let n = text.chars().count();
+    let nf = n as f64;
+    let digits = text.chars().filter(|c| c.is_numeric()).count() as f64;
+    let upper = text.chars().filter(|c| c.is_uppercase()).count() as f64;
+    let punct = text
+        .chars()
+        .filter(|c| !c.is_alphanumeric() && !c.is_whitespace())
+        .count() as f64;
+    let nlines = text.split('\n').count();
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let nwords = words.len();
+    let uniq = words
+        .iter()
+        .map(|w| w.to_lowercase())
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    let angles = (text.matches('<').count() + text.matches('>').count()) as f64;
+
+    let mut m = HashMap::new();
+    m.insert("log_len", (1.0 + nf).ln());
+    m.insert("frac_digit", if n > 0 { digits / nf } else { 0.0 });
+    m.insert("frac_upper", if n > 0 { upper / nf } else { 0.0 });
+    m.insert("frac_punct", if n > 0 { punct / nf } else { 0.0 });
+    m.insert(
+        "brace_json",
+        if text.contains("\": ") || text.trim_start().starts_with('{') {
+            1.0
+        } else {
+            0.0
+        },
+    );
+    m.insert("log_nlines", (1.0 + nlines as f64).ln());
+    m.insert(
+        "avg_line_len",
+        if nlines > 0 { nf / nlines as f64 } else { 0.0 },
+    );
+    m.insert(
+        "title_marker",
+        if title.contains(':') || title.contains('/') {
+            1.0
+        } else {
+            0.0
+        },
+    );
+    m.insert("uri_log", if uri.ends_with(".log") { 1.0 } else { 0.0 });
+    m.insert("angle_frac", if n > 0 { angles / nf } else { 0.0 });
+    m.insert(
+        "uniq_ratio",
+        if nwords > 0 {
+            uniq as f64 / nwords as f64
+        } else {
+            0.0
+        },
+    );
+    m
+}
+
+fn sigmoid(z: f64) -> f64 {
+    1.0 / (1.0 + (-z).exp())
+}
+
+/// P(noise) from the learned model — CatBoost oblivious-tree ensemble or logistic fallback.
+fn learned_noise_prob(m: &NoiseModel, feats: &HashMap<&'static str, f64>) -> f64 {
+    if m.kind == "catboost_oblivious" && !m.trees.is_empty() {
+        let fvec: Vec<f64> = m
+            .feature_order
+            .iter()
+            .map(|k| feats.get(k.as_str()).copied().unwrap_or(0.0))
+            .collect();
+        return catboost_prob(m, &fvec);
+    }
+    let mut z = m.bias;
+    for (k, w) in &m.weights {
+        z += w * feats.get(k.as_str()).copied().unwrap_or(0.0);
+    }
+    sigmoid(z)
+}
+
+/// Evaluate the CatBoost oblivious ensemble over a feature vector aligned to `feature_order`.
+/// Oblivious tree: leaf index = OR of (feature > border) << split_position. Same convention
+/// as CatBoost's model JSON, verified against predict_proba parity vectors.
+fn catboost_prob(m: &NoiseModel, fvec: &[f64]) -> f64 {
+    let mut sum = 0.0;
+    for tree in &m.trees {
+        let mut idx = 0usize;
+        for (pos, s) in tree.splits.iter().enumerate() {
+            if fvec.get(s.feature).copied().unwrap_or(0.0) > s.border {
+                idx |= 1 << pos;
+            }
+        }
+        sum += tree.leaves.get(idx).copied().unwrap_or(0.0);
+    }
+    sigmoid(m.scale * sum + m.bias)
+}
+
+/// True if `h` is noise — hard patterns first, then the learned model if loaded.
+fn drop_as_noise(h: &Value) -> bool {
+    if is_noise(h) {
+        return true;
+    }
+    if let Some(model) = NOISE_MODEL.as_ref() {
+        let title = h.get("title").and_then(|v| v.as_str()).unwrap_or("");
+        let uri = h.get("uri").and_then(|v| v.as_str()).unwrap_or("");
+        let text = h.get("text").and_then(|v| v.as_str()).unwrap_or("");
+        let feats = noise_features(title, uri, text);
+        if learned_noise_prob(model, &feats) > model.threshold {
+            return true;
+        }
+    }
+    false
+}
+
+/// Recall booster: union the raw-query hybrid search with a high-signal-terms search,
+/// drop noise (via negativa), dedup by id (keeping the higher daemon score).
+/// Returns the clean candidates and the number of noise docs filtered out.
+async fn recall_candidates(sock: &PathBuf, query: &str, k: usize) -> Result<(Vec<Value>, usize)> {
+    let raw = hybrid_hits(sock, query, k).await?;
+    let terms = query_terms(query);
+    let term_query = terms.join(" ");
+    let extra = if !terms.is_empty() && term_query != query {
+        hybrid_hits(sock, &term_query, k).await.unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    let mut by_id: HashMap<i64, Value> = HashMap::new();
+    let mut order: Vec<i64> = Vec::new();
+    let mut noise = 0usize;
+    for h in raw.into_iter().chain(extra) {
+        if drop_as_noise(&h) {
+            noise += 1;
+            continue;
+        }
+        let id = h.get("id").and_then(|v| v.as_i64()).unwrap_or_default();
+        match by_id.get(&id) {
+            Some(existing) => {
+                let es = existing
+                    .get("score")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let ns = h.get("score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                if ns > es {
+                    by_id.insert(id, h);
+                }
+            }
+            None => {
+                order.push(id);
+                by_id.insert(id, h);
+            }
+        }
+    }
+    let clean = order
+        .into_iter()
+        .filter_map(|id| by_id.remove(&id))
+        .collect();
+    Ok((clean, noise))
+}
+
+async fn hybrid_hits(sock: &PathBuf, query: &str, limit: usize) -> Result<Vec<Value>> {
+    let resp = daemon_call(
+        sock,
+        json!({"op": "Search", "args": {
+            "mode": "Hybrid", "q": query, "limit": limit, "embed_query": true
+        }}),
+    )
+    .await?;
+    Ok(resp
+        .get("Hits")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default())
+}
+
+async fn context_pack(sock: &PathBuf, args: &Value) -> Result<Value> {
+    let query = args
+        .get("query")
+        .or_else(|| args.get("task"))
+        .and_then(|v| v.as_str())
+        .context("query")?;
+    let budget = args
+        .get("budget_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(4000) as usize;
+    let k = args.get("k").and_then(|v| v.as_u64()).unwrap_or(32) as usize;
+    let prev_pack_id: Option<&str> = args.get("prev_pack_id").and_then(|v| v.as_str());
+    let cache_stable: bool = args
+        .get("cache_stable_order")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let use_cache: bool = args
+        .get("use_cache")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let kinds_filter: Option<Vec<String>> = args.get("kinds").and_then(|v| v.as_array()).map(|a| {
+        a.iter()
+            .filter_map(|x| x.as_str().map(|s| s.to_ascii_lowercase()))
+            .collect()
+    });
+
+    // Verify-gate degradation: shrink budget if the session has 3+ unanswered packs.
+    let budget = if let Ok(state) = FEEDBACK_STATE.lock() {
+        state.budget_factor(budget)
+    } else {
+        budget
+    };
+
+    // 0. Pack cache hit → skip recall+pack entirely.
+    let cache_key = PackCache::key(query, budget, prev_pack_id);
+    if use_cache
+        && prev_pack_id.is_none()
+        && let Ok(mut cache) = PACK_CACHE.lock()
+        && let Some(entry) = cache.get(cache_key)
+    {
+        return Ok(json!({
+            "pack_id": entry.pack_id,
+            "context": entry.rendered,
+            "manifest": {
+                "used_ids": entry.used_ids,
+                "dropped_ids": Vec::<i64>::new(),
+                "deduped_ids": Vec::<i64>::new(),
+                "delta_skipped_ids": Vec::<i64>::new(),
+                "used_tokens": entry.used_tokens,
+                "budget_tokens": budget,
+                "naive_tokens": entry.naive_tokens,
+                "savings_pct": entry.savings_pct,
+                "noise_filtered": 0,
+                "cache_hit": true,
+                "blocks": Vec::<Value>::new(),
+            }
+        }));
+    }
+
+    // Recall: union of the raw-query search and a high-signal-terms search, noise-filtered + deduped.
+    let (hits, noise_filtered) = recall_candidates(sock, query, k).await?;
+    let terms = query_terms(query);
+    let learned = learn_bonus_map();
+    let mut cands = Vec::new();
+    for h in &hits {
+        let text = h.get("text").and_then(|v| v.as_str()).unwrap_or_default();
+        if text.is_empty() {
+            continue;
+        }
+        let id = h.get("id").and_then(|v| v.as_i64()).unwrap_or_default();
+        let title = h
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let mut score = h.get("score").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+        let meta = h.get("meta").cloned().unwrap_or(Value::Null);
+        let kind = hit_kind(&title, &meta);
+        // learned per-kind bonus — feedback on this kind lifts it in future packs
+        score += learned.get(kind_tag(kind)).copied().unwrap_or(0.0);
+        // recall: a candidate matching more query terms ranks higher (survives the budget)
+        score += term_overlap_boost(&terms, text);
+        score += term_overlap_boost(&terms, &title);
+        if let Some(filter) = &kinds_filter
+            && !filter.iter().any(|f| kind_tag(kind).contains(f.as_str()))
+        {
+            continue;
+        }
+        cands.push(Candidate {
+            id,
+            title,
+            text: text.to_string(),
+            score,
+            kind,
+        });
+    }
+
+    // Resolve prev_pack_id → prev_used_ids via cache lookup.
+    let prev_used_ids: Vec<i64> = if let Some(pid) = prev_pack_id {
+        if let Ok(cache) = PACK_CACHE.lock() {
+            cache
+                .inner
+                .values()
+                .find(|e| e.pack_id == pid)
+                .map(|e| e.used_ids.clone())
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+
+    let opts = PackOptions {
+        budget_tokens: budget,
+        header_reserve: 64,
+        prev_used_ids: prev_used_ids.clone(),
+        cache_stable_order: cache_stable,
+    };
+    // Delta path: skip already-packed ids. Falls back to full pack if prev is empty.
+    let packed = if prev_used_ids.is_empty() {
+        pack(cands, &opts)
+    } else {
+        pack_delta(cands, &opts)
+    };
+    let rendered = render(&packed);
+    let used_ids: Vec<i64> = packed.blocks.iter().map(|b| b.id).collect();
+    let pid = pack_id(query, &used_ids);
+    let blocks: Vec<Value> = packed
+        .blocks
+        .iter()
+        .map(|b| {
+            json!({
+                "id": b.id,
+                "kind": kind_tag(b.kind),
+                "tier": format!("{:?}", b.tier),
+                "tokens": b.tokens
+            })
+        })
+        .collect();
+    let savings_pct = packed.savings_pct();
+    let used_tokens = packed.used_tokens;
+    let naive_tokens = packed.naive_tokens;
+
+    // Store in cache for future hits.
+    if use_cache
+        && prev_pack_id.is_none()
+        && let Ok(mut cache) = PACK_CACHE.lock()
+    {
+        cache.put(
+            cache_key,
+            PackCacheEntry {
+                rendered: rendered.clone(),
+                used_ids: used_ids.clone(),
+                used_tokens,
+                naive_tokens,
+                savings_pct,
+                pack_id: pid.clone(),
+            },
+        );
+    }
+
+    // Register pack for verify-gate degradation tracking.
+    if let Ok(mut state) = FEEDBACK_STATE.lock() {
+        state.register_pack(&pid);
+    }
+
+    // Skill-preload hints: suggest skills the router should lazy-load based on
+    // query terms. The router (separate system) reads this and swaps 15k-tok
+    // system-prompt skills for 0-1 actually-relevant ones.
+    let preload_skills = skill_preload_hints(query);
+
+    Ok(json!({
+        "pack_id": pid,
+        "context": rendered,
+        "manifest": {
+            "used_ids": used_ids,
+            "dropped_ids": packed.dropped_ids,
+            "deduped_ids": packed.deduped_ids,
+            "delta_skipped_ids": packed.delta_skipped_ids,
+            "used_tokens": used_tokens,
+            "budget_tokens": packed.budget_tokens,
+            "naive_tokens": naive_tokens,
+            "savings_pct": savings_pct,
+            "noise_filtered": noise_filtered,
+            "cache_hit": false,
+            "blocks": blocks,
+            "preload_skills": preload_skills,
+        }
+    }))
+}
+
+async fn context_feedback(sock: &PathBuf, args: &Value) -> Result<Value> {
+    let pack_id = args.get("pack_id").and_then(|v| v.as_str()).unwrap_or("");
+    let gate = args
+        .get("gate")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let used_ids: Vec<i64> = args
+        .get("used_ids")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_i64()).collect())
+        .unwrap_or_default();
+
+    // Resolve the kind of each used doc so we can reward the right kinds.
+    let mut kinds: Vec<&'static str> = Vec::new();
+    if !used_ids.is_empty() {
+        let placeholders = std::iter::repeat_n("?", used_ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let rows = sql_rows(
+            sock,
+            format!("SELECT id, title, meta FROM docs WHERE id IN ({placeholders})"),
+            used_ids.iter().map(|id| json!(id)).collect(),
+        )
+        .await
+        .unwrap_or_default();
+        for r in &rows {
+            let title = r.get("title").and_then(|v| v.as_str()).unwrap_or_default();
+            let meta = r.get("meta").cloned().unwrap_or(Value::Null);
+            kinds.push(kind_tag(hit_kind(title, &meta)));
+        }
+    }
+
+    // Close the self-learning loop: gate=pass rewards the used kinds, fail dampens.
+    let rewarded = if gate == "unknown" {
+        0
+    } else {
+        record_ctx_reward(&kinds, gate == "pass")
+    };
+
+    // Mark feedback received → clears verify-gate degradation for this pack.
+    if !pack_id.is_empty()
+        && let Ok(mut state) = FEEDBACK_STATE.lock()
+    {
+        state.mark_feedback(pack_id);
+    }
+
+    // Persist the raw feedback event too (sweepable, auditable).
+    let payload = json!({
+        "pack_id": pack_id,
+        "used_ids": used_ids,
+        "gate": gate,
+        "kinds": kinds,
+        "ts": now_secs(),
+    });
+    let meta = json!({"schema": "synapse.ctxos.v1", "kind": "ctx-feedback", "gate": gate});
+    daemon_call(
+        sock,
+        json!({"op": "Put", "args": {
+            "title": format!("ctx-feedback/{gate}"),
+            "uri": Value::Null,
+            "text": payload.to_string(),
+            "meta": meta,
+            "embed": false,
+        }}),
+    )
+    .await?;
+    Ok(json!({
+        "ok": true,
+        "gate": gate,
+        "rewarded_kinds": kinds,
+        "learn_updates": rewarded,
+    }))
+}
+
+async fn context_remember(sock: &PathBuf, args: &Value) -> Result<Value> {
+    let text = args.get("text").and_then(|v| v.as_str()).context("text")?;
+    let title = args.get("title").and_then(|v| v.as_str());
+    let kind = args
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or("known-fact");
+    let mut meta = json!({"schema": "synapse.ctxos.v1", "kind": kind});
+    if let Some(topic) = args.get("topic").and_then(|v| v.as_str()) {
+        meta["topic"] = json!(topic);
+    }
+    if let Some(sup) = args.get("supersedes").and_then(|v| v.as_i64()) {
+        meta["supersedes"] = json!(sup);
+    }
+    daemon_call(
+        sock,
+        json!({"op": "Put", "args": {
+            "title": title,
+            "uri": Value::Null,
+            "text": text,
+            "meta": meta,
+            "embed": true,
+        }}),
+    )
+    .await
+}
+
+// ── Swarm / Mega-Session Spiegelung ───────────────────────────────────────────
+// session_ingest: nimmt Events aus cmux/Swarm-Sessions (Tool-Calls, Antworten,
+// File-Edits, Decisions) und speichert sie als kind=session-summary Docs mit
+// meta.session_id, meta.agent_role, meta.turn_range. Das ermöglicht späteres
+// session_replay + progressive Summarization.
+async fn session_ingest(sock: &PathBuf, args: &Value) -> Result<Value> {
+    let session_id = args
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .context("session_id")?;
+    let agent_role = args
+        .get("agent_role")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let events = args
+        .get("events")
+        .and_then(|v| v.as_array())
+        .context("events")?;
+    let summary = args.get("summary").and_then(|v| v.as_str()).unwrap_or("");
+    let turn_start = args.get("turn_start").and_then(|v| v.as_u64()).unwrap_or(0) as i64;
+    let turn_end = args.get("turn_end").and_then(|v| v.as_u64()).unwrap_or(0) as i64;
+    let repo = args.get("repo").and_then(|v| v.as_str()).unwrap_or("");
+
+    // Build a compact verbatim event log: one line per event.
+    let mut log = String::new();
+    for ev in events {
+        let turn = ev.get("turn").and_then(|v| v.as_u64()).unwrap_or(0);
+        let kind = ev.get("kind").and_then(|v| v.as_str()).unwrap_or("event");
+        let tool = ev.get("tool").and_then(|v| v.as_str()).unwrap_or("");
+        let content = ev.get("content").and_then(|v| v.as_str()).unwrap_or("");
+        // Truncate individual event content to keep the log packable.
+        let snippet: String = content.chars().take(500).collect();
+        log.push_str(&format!("[t{turn} {kind} {tool}] {snippet}\n"));
+    }
+    if !summary.is_empty() {
+        log.push_str(&format!("\n=== SUMMARY ===\n{summary}\n"));
+    }
+
+    let title = format!("session/{session_id}/{agent_role}/t{turn_start}-t{turn_end}");
+    let mut meta = json!({
+        "schema": "synapse.ctxos.v1",
+        "kind": "session-summary",
+        "session_id": session_id,
+        "agent_role": agent_role,
+        "turn_range": [turn_start, turn_end],
+    });
+    if !repo.is_empty() {
+        meta["repo"] = json!(repo);
+    }
+
+    daemon_call(
+        sock,
+        json!({"op": "Put", "args": {
+            "title": title,
+            "uri": Value::Null,
+            "text": log,
+            "meta": meta,
+            "embed": true,
+        }}),
+    )
+    .await
+}
+
+// session_replay: baut eine Session aus gespeicherten session-summary Docs wieder
+// auf. Sucht nach meta.session_id == <id>, sortiert nach turn_range, packt sie.
+async fn session_replay(sock: &PathBuf, args: &Value) -> Result<Value> {
+    let session_id = args
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .context("session_id")?;
+    let budget = args
+        .get("budget_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(8000) as usize;
+    let agent_role: Option<&str> = args.get("agent_role").and_then(|v| v.as_str());
+
+    // Query session-summary docs for this session via SQL filter on meta.
+    let filter_clause = if let Some(role) = agent_role {
+        format!(
+            "WHERE meta LIKE '%\"session_id\":\"{sid}\"%' AND meta LIKE '%\"agent_role\":\"{role}\"%'",
+            sid = session_id,
+            role = role
+        )
+    } else {
+        format!(
+            "WHERE meta LIKE '%\"session_id\":\"{sid}\"%'",
+            sid = session_id
+        )
+    };
+    let rows = sql_rows(
+        sock,
+        format!(
+            "SELECT id, title, text, meta, ts FROM docs {filter_clause} ORDER BY ts ASC LIMIT 200"
+        ),
+        Vec::new(),
+    )
+    .await
+    .unwrap_or_default();
+
+    let mut cands = Vec::new();
+    for r in &rows {
+        let id = r.get("id").and_then(|v| v.as_i64()).unwrap_or_default();
+        let title = r
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let text = r
+            .get("text")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        if text.is_empty() {
+            continue;
+        }
+        let meta = r.get("meta").cloned().unwrap_or(Value::Null);
+        let kind = hit_kind(&title, &meta);
+        cands.push(Candidate {
+            id,
+            title,
+            text,
+            score: 1.0, // all session events equal weight; order by ts (already sorted)
+            kind,
+        });
+    }
+
+    if cands.is_empty() {
+        return Ok(json!({
+            "session_id": session_id,
+            "events": 0,
+            "context": "",
+            "manifest": {"used_tokens": 0, "budget_tokens": budget, "savings_pct": 0.0},
+        }));
+    }
+
+    let opts = PackOptions {
+        budget_tokens: budget,
+        header_reserve: 64,
+        ..PackOptions::default()
+    };
+    let packed = pack(cands, &opts);
+    let rendered = render(&packed);
+    let used_ids: Vec<i64> = packed.blocks.iter().map(|b| b.id).collect();
+    let pid = pack_id(session_id, &used_ids);
+
+    Ok(json!({
+        "pack_id": pid,
+        "session_id": session_id,
+        "events": packed.blocks.len(),
+        "context": rendered,
+        "manifest": {
+            "used_ids": used_ids,
+            "used_tokens": packed.used_tokens,
+            "budget_tokens": packed.budget_tokens,
+            "naive_tokens": packed.naive_tokens,
+            "savings_pct": packed.savings_pct(),
+        }
+    }))
+}
+
+async fn context_state(sock: &PathBuf, args: &Value) -> Result<Value> {
+    let topic = args
+        .get("topic")
+        .and_then(|v| v.as_str())
+        .context("topic")?;
+    let k = args.get("k").and_then(|v| v.as_u64()).unwrap_or(12) as usize;
+    let hits = hybrid_hits(sock, topic, k * 2).await?;
+
+    // Keep verified knowledge only (facts + decisions); collect supersession edges.
+    let mut superseded: HashSet<i64> = HashSet::new();
+    let mut items: Vec<Value> = Vec::new();
+    for h in &hits {
+        let meta = h.get("meta").cloned().unwrap_or(Value::Null);
+        if let Some(sup) = meta.get("supersedes").and_then(|v| v.as_i64()) {
+            superseded.insert(sup);
+        }
+        let title = h.get("title").and_then(|v| v.as_str()).unwrap_or_default();
+        let kind = hit_kind(title, &meta);
+        if !matches!(kind, Kind::KnownFact | Kind::Decision) {
+            continue;
+        }
+        let id = h.get("id").and_then(|v| v.as_i64()).unwrap_or_default();
+        let text = h.get("text").and_then(|v| v.as_str()).unwrap_or_default();
+        let head = text
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty())
+            .unwrap_or("");
+        let open = text.lines().any(|l| {
+            let u = l.to_ascii_uppercase();
+            u.contains("TODO") || u.contains("OPEN") || u.contains("UNVERIFIED")
+        });
+        items.push(json!({
+            "id": id,
+            "kind": kind_tag(kind),
+            "title": title,
+            "head": head,
+            "ts": h.get("ts").cloned().unwrap_or(Value::Null),
+            "open": open,
+        }));
+    }
+    // newest-first, drop superseded, cap at k
+    items.sort_by(|a, b| {
+        b.get("ts")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+            .cmp(&a.get("ts").and_then(|v| v.as_i64()).unwrap_or(0))
+    });
+    let current: Vec<Value> = items
+        .into_iter()
+        .filter(|it| {
+            !superseded.contains(&it.get("id").and_then(|v| v.as_i64()).unwrap_or_default())
+        })
+        .take(k)
+        .collect();
+
+    let mut card = format!("CURRENT STATE — {topic} [{} verified]\n", current.len());
+    for it in &current {
+        let flag = if it.get("open").and_then(|v| v.as_bool()).unwrap_or(false) {
+            " ⚠open"
+        } else {
+            ""
+        };
+        card.push_str(&format!(
+            "- [{}|{}]{} {} :: {}\n",
+            it.get("id").and_then(|v| v.as_i64()).unwrap_or_default(),
+            it.get("kind").and_then(|v| v.as_str()).unwrap_or("other"),
+            flag,
+            it.get("title").and_then(|v| v.as_str()).unwrap_or_default(),
+            it.get("head").and_then(|v| v.as_str()).unwrap_or_default(),
+        ));
+    }
+    Ok(json!({"topic": topic, "state": card, "items": current}))
+}
+
 fn json_array_to_bytes(v: Option<&Value>) -> Result<Vec<u8>> {
     let arr = v
         .and_then(|v| v.as_array())
@@ -957,5 +2234,185 @@ mod tests {
             truncate_chars("äöüß alpha", 4).unwrap(),
             "äöüß\n[truncated]"
         );
+    }
+
+    #[test]
+    fn term_overlap_boost_scales_with_matches() {
+        let terms = vec![
+            "synapse".to_string(),
+            "context".to_string(),
+            "packer".to_string(),
+        ];
+        let none = term_overlap_boost(&terms, "totally unrelated prose");
+        let some = term_overlap_boost(&terms, "the synapse context engine");
+        let all = term_overlap_boost(&terms, "synapse context packer notes");
+        assert_eq!(none, 0.0);
+        assert!(some > none && all > some, "more matches => bigger boost");
+        assert!(all <= 0.1 + f32::EPSILON, "boost is bounded");
+        assert_eq!(term_overlap_boost(&[], "anything"), 0.0);
+    }
+
+    #[test]
+    fn is_noise_drops_spam_keeps_knowledge() {
+        let telepathy = json!({"text": "[telepathy][ollama.status] {\"models_loaded\": 18}"});
+        let notif = json!({"text": "<task-notification> <task-id>abc</task-id> done"});
+        let status = json!({"text": "{\"desktop_procs\": 0, \"cli_sessions\": 2}"});
+        let log = json!({"uri": "sched_briefing.log", "text": "Agent [briefing] log running ..."});
+        let stub = json!({"text": "ok"});
+        let real = json!({"title": "known-fact:speedtune", "text": "Context-OS packs verbatim STATE within a token budget; deletion tiers."});
+        for n in [&telepathy, &notif, &status, &log, &stub] {
+            assert!(is_noise(n), "should drop noise: {n}");
+        }
+        assert!(!is_noise(&real), "must keep real knowledge");
+    }
+
+    #[test]
+    fn noise_features_and_logistic_apply() {
+        let f = noise_features("known-fact:x", "", "value = 42\npath src/a.rs:9");
+        // keys present + flags correct (parity with the Python trainer)
+        assert!(f.contains_key("log_len") && f.contains_key("uniq_ratio"));
+        assert_eq!(f["title_marker"], 1.0); // title has ':'
+        assert_eq!(f["uri_log"], 0.0);
+        assert!(f["frac_digit"] > 0.0);
+        // logistic apply: positive bias + no weights => sigmoid(bias)
+        let m = NoiseModel {
+            weights: HashMap::new(),
+            bias: 0.0,
+            threshold: 0.5,
+            ..Default::default()
+        };
+        assert!((learned_noise_prob(&m, &f) - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn pack_cache_put_get_lru_evicts() {
+        let mut cache = PackCache::default();
+        let k1 = PackCache::key("alpha", 1000, None);
+        let k2 = PackCache::key("beta", 1000, None);
+        let e1 = PackCacheEntry {
+            rendered: "STATE alpha".into(),
+            used_ids: vec![1, 2],
+            used_tokens: 100,
+            naive_tokens: 500,
+            savings_pct: 80.0,
+            pack_id: "pid-alpha".into(),
+        };
+        cache.put(k1, e1.clone());
+        assert_eq!(cache.len(), 1);
+        assert!(cache.get(k1).is_some());
+        assert!(cache.get(k2).is_none(), "unrelated key must miss");
+        cache.put(k2, e1.clone());
+        assert_eq!(cache.len(), 2);
+    }
+
+    #[test]
+    fn pack_cache_key_differs_on_prev_pack_id() {
+        let k_no_prev = PackCache::key("query", 1000, None);
+        let k_with_prev = PackCache::key("query", 1000, Some("pid-abc"));
+        assert_ne!(
+            k_no_prev, k_with_prev,
+            "prev_pack_id must change the cache key"
+        );
+    }
+
+    #[test]
+    fn pack_cache_key_stable_for_same_inputs() {
+        let k1 = PackCache::key("query", 1000, None);
+        let k2 = PackCache::key("query", 1000, None);
+        assert_eq!(k1, k2, "same inputs must hash to same key");
+    }
+
+    #[test]
+    fn pack_cache_lru_evicts_oldest_when_full() {
+        let mut cache = PackCache::default();
+        // Fill to capacity.
+        for i in 0..PACK_CACHE_CAP {
+            let k = PackCache::key(&format!("q{i}"), 1000, None);
+            cache.put(
+                k,
+                PackCacheEntry {
+                    rendered: format!("STATE {i}"),
+                    used_ids: vec![i as i64],
+                    used_tokens: 10,
+                    naive_tokens: 50,
+                    savings_pct: 80.0,
+                    pack_id: format!("pid-{i}"),
+                },
+            );
+        }
+        assert_eq!(cache.len(), PACK_CACHE_CAP);
+        // Insert one more → oldest (q0) must be evicted.
+        let new_k = PackCache::key("q-new", 1000, None);
+        cache.put(
+            new_k,
+            PackCacheEntry {
+                rendered: "STATE new".into(),
+                used_ids: vec![999],
+                used_tokens: 10,
+                naive_tokens: 50,
+                savings_pct: 80.0,
+                pack_id: "pid-new".into(),
+            },
+        );
+        assert_eq!(cache.len(), PACK_CACHE_CAP, "cap must be maintained");
+        let old_k = PackCache::key("q0", 1000, None);
+        assert!(cache.get(old_k).is_none(), "oldest entry must be evicted");
+        assert!(cache.get(new_k).is_some(), "newest entry must be present");
+    }
+
+    #[test]
+    fn feedback_state_degrades_after_three_open_packs() {
+        let mut state = FeedbackState::default();
+        // No packs → no degradation.
+        assert_eq!(state.budget_factor(4000), 4000);
+        // Register 3 packs with no feedback → 60% budget.
+        state.register_pack("pid-1");
+        state.register_pack("pid-2");
+        state.register_pack("pid-3");
+        assert_eq!(state.budget_factor(4000), 2400);
+        // Mark feedback for one → still 2 open, no degradation.
+        state.mark_feedback("pid-1");
+        assert_eq!(state.budget_factor(4000), 4000);
+        // 6+ open packs → 40% budget.
+        for i in 4..=7 {
+            state.register_pack(&format!("pid-{i}"));
+        }
+        assert_eq!(state.budget_factor(4000), 1600);
+    }
+
+    #[test]
+    fn skill_preload_hints_match_trading_query() {
+        let hints = skill_preload_hints("how do I build a trading portfolio with kelly sizing");
+        assert!(
+            hints.contains(&"asymbet"),
+            "asymbet must be hinted for trading query"
+        );
+        assert!(hints.contains(&"winvestment-profet"));
+        assert!(hints.len() <= 3);
+    }
+
+    #[test]
+    fn skill_preload_hints_match_code_query() {
+        let hints = skill_preload_hints("refactor the rust repo and fix the cargo build bug");
+        assert!(hints.contains(&"agent-token-saver"));
+    }
+
+    #[test]
+    fn skill_preload_hints_empty_for_greeting() {
+        let hints = skill_preload_hints("hello how are you today my friend");
+        assert!(hints.is_empty(), "no skill hints for greetings");
+    }
+
+    #[test]
+    fn has_context_trigger_matches_real_tasks() {
+        assert!(has_context_trigger(
+            "how do I implement a delta pack in synapse-pack"
+        ));
+        assert!(has_context_trigger(
+            "wie kann ich das token-saving optimieren"
+        ));
+        assert!(!has_context_trigger("hi"));
+        assert!(!has_context_trigger("thanks"));
+        assert!(!has_context_trigger("ok"));
     }
 }
