@@ -154,8 +154,90 @@ enum Cmd {
     /// Optional DuckLake archive operations.
     #[command(subcommand)]
     Lake(LakeCmd),
-    /// Health check.
+    /// Health check (11-point audit: integrity, WAL, FTS, indexes, triggers, ...).
+    Health {
+        /// Emit JSON instead of human-readable output.
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Create a compressed (zstd) backup of brain.db.
+    Backup {
+        /// Destination directory (default: ~/.synapse/backups/).
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+    },
+    /// Export metrics in Prometheus or JSON format.
+    Metrics {
+        /// Output format: prometheus | json.
+        #[arg(long, default_value = "prometheus")]
+        format: String,
+    },
+    /// Tag operations.
+    #[command(subcommand)]
+    Tags(TagsCmd),
+    /// Health check (alias for `health`).
     Doctor,
+}
+
+#[derive(Subcommand)]
+enum TagsCmd {
+    /// Create a new tag.
+    Add {
+        name: String,
+        #[arg(long)]
+        color: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
+    },
+    /// List all tags.
+    List,
+    /// Tag a doc/event.
+    Tag {
+        doc_id: i64,
+        tag_name: String,
+        #[arg(long, default_value = "manual")]
+        source: String,
+    },
+    /// Bulk-tag multiple docs (reads doc IDs from stdin or args).
+    Bulk {
+        tag_name: String,
+        /// Comma-separated doc IDs.
+        #[arg(long)]
+        ids: String,
+        #[arg(long, default_value = "manual")]
+        source: String,
+    },
+    /// Remove a tag from a doc.
+    Untag {
+        doc_id: i64,
+        tag_name: String,
+    },
+    /// List tags applied to a doc.
+    For { doc_id: i64 },
+    /// List docs with a given tag.
+    Docs { tag_name: String },
+    /// Add an auto-tag rule (keyword → tag).
+    Rule {
+        keyword: String,
+        tag_name: String,
+    },
+    /// List all auto-tag rules.
+    Rules,
+    /// Merge two tags (repoints doc_tags, deletes source).
+    Merge {
+        from: String,
+        into: String,
+    },
+    /// Delete tags with no associations.
+    Cleanup,
+    /// Tag statistics.
+    Stats,
+    /// Export all tags + associations + rules as JSON.
+    Export,
+    /// Import tags from a JSON file.
+    Import {
+        path: std::path::PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -388,11 +470,13 @@ fn run() -> Result<()> {
         }
         Cmd::Doctor => {
             ultra.migrate()?;
-            let stats = ultra.with_conn(synapse_ultra::observe::brain_stats)?;
-            println!("ultra: doctor — OK");
-            println!("  db: {} ({} bytes)", db.display(), stats.db_size_bytes);
-            println!("  ultra schema: v{}", stats.ultra_schema_version);
-            println!("  duckdb CLI: {}", if synapse_ultra::lake::duckdb_available() { "available" } else { "NOT found (optional)" });
+            let report = ultra.with_conn(synapse_ultra::ops::health_check)?;
+            println!("# ultra doctor — {}", db.display());
+            println!("overall: {}", if report.overall_ok { "OK" } else { "FAIL" });
+            for c in &report.checks {
+                let mark = if c.ok { "✓" } else { "✗" };
+                println!("  {mark} {:<24} {}", c.name, c.detail);
+            }
         }
         Cmd::Trace { agent, days, limit } => {
             ultra.migrate()?;
@@ -510,6 +594,160 @@ fn run() -> Result<()> {
                 };
                 println!("[{}] {} {} uri={} {}", r.ts, r.agent, r.kind, r.uri.unwrap_or_default(), preview);
             }
+        }
+        Cmd::Health { json } => {
+            ultra.migrate()?;
+            let report = ultra.with_conn(synapse_ultra::ops::health_check)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                println!("# ultra health — {}", db.display());
+                println!("overall: {}", if report.overall_ok { "OK" } else { "FAIL" });
+                println!("db_size: {} bytes ({} pages × {} bytes)", report.db_size_bytes, report.page_count, report.page_size);
+                println!("journal_mode: {}  synchronous: {}  foreign_keys: {}", report.journal_mode, report.synchronous, report.foreign_keys);
+                println!("ultra_schema: v{}", report.ultra_schema_version);
+                println!();
+                for c in &report.checks {
+                    let mark = if c.ok { "✓" } else { "✗" };
+                    println!("  {mark} {:<24} {}", c.name, c.detail);
+                }
+            }
+        }
+        Cmd::Backup { out } => {
+            ultra.migrate()?;
+            let dest = out.unwrap_or_else(|| {
+                dirs_next::home_dir()
+                    .map(|h| h.join(".synapse").join("backups"))
+                    .unwrap_or_else(|| std::path::PathBuf::from("backups"))
+            });
+            let report = synapse_ultra::ops::create_backup(&db, &dest)?;
+            println!("# ultra backup");
+            println!("  path:        {}", report.backup_path.display());
+            println!("  original:    {} bytes", report.original_bytes);
+            println!("  compressed:  {} bytes", report.compressed_bytes);
+            println!("  ratio:       {:.2} ({:.0}% compression)", report.compression_ratio, (1.0 - report.compression_ratio) * 100.0);
+            println!("  sha256:      {}", report.sha256);
+            println!("  ts:          {}", report.ts);
+        }
+        Cmd::Metrics { format } => {
+            ultra.migrate()?;
+            match format.as_str() {
+                "json" => {
+                    let j = ultra.with_conn(synapse_ultra::ops::metrics_json)?;
+                    println!("{}", serde_json::to_string_pretty(&j)?);
+                }
+                _ => {
+                    let p = ultra.with_conn(synapse_ultra::ops::prometheus)?;
+                    print!("{}", p);
+                }
+            }
+        }
+        Cmd::Tags(cmd) => {
+            ultra.migrate()?;
+            ultra.with_conn(|c| -> Result<()> {
+                synapse_ultra::tags::migrate(c)?;
+                match cmd {
+                    TagsCmd::Add { name, color, description } => {
+                        let id = synapse_ultra::tags::create_tag(c, &name, color.as_deref(), description.as_deref())?;
+                        println!("ultra: tag '{name}' → id={id}");
+                    }
+                    TagsCmd::List => {
+                        let tags = synapse_ultra::tags::list_tags(c)?;
+                        if tags.is_empty() {
+                            println!("ultra: no tags yet");
+                        } else {
+                            println!("# tags ({})", tags.len());
+                            println!("id\tname\tcolor\tdescription");
+                            for t in tags {
+                                println!("{}\t{}\t{}\t{}", t.id, t.name, t.color.unwrap_or_default(), t.description.unwrap_or_default());
+                            }
+                        }
+                    }
+                    TagsCmd::Tag { doc_id, tag_name, source } => {
+                        synapse_ultra::tags::tag_doc(c, doc_id, &tag_name, &source)?;
+                        println!("ultra: doc {doc_id} tagged '{tag_name}' (source={source})");
+                    }
+                    TagsCmd::Bulk { tag_name, ids, source } => {
+                        let doc_ids: Vec<i64> = ids.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+                        let n = synapse_ultra::tags::bulk_tag(c, &doc_ids, &tag_name, &source)?;
+                        println!("ultra: bulk-tagged {n} docs with '{tag_name}'");
+                    }
+                    TagsCmd::Untag { doc_id, tag_name } => {
+                        synapse_ultra::tags::untag_doc(c, doc_id, &tag_name)?;
+                        println!("ultra: removed tag '{tag_name}' from doc {doc_id}");
+                    }
+                    TagsCmd::For { doc_id } => {
+                        let tags = synapse_ultra::tags::tags_for_doc(c, doc_id)?;
+                        if tags.is_empty() {
+                            println!("ultra: doc {doc_id} has no tags");
+                        } else {
+                            println!("# tags for doc {doc_id} ({})", tags.len());
+                            for t in tags {
+                                println!("  {} (source={}, ts={})", t.tag_name, t.source, t.ts);
+                            }
+                        }
+                    }
+                    TagsCmd::Docs { tag_name } => {
+                        let docs = synapse_ultra::tags::docs_for_tag(c, &tag_name)?;
+                        if docs.is_empty() {
+                            println!("ultra: no docs tagged '{tag_name}'");
+                        } else {
+                            println!("# docs with tag '{tag_name}' ({})", docs.len());
+                            for d in docs {
+                                println!("  doc_id={} source={} ts={}", d.doc_id, d.source, d.ts);
+                            }
+                        }
+                    }
+                    TagsCmd::Rule { keyword, tag_name } => {
+                        let id = synapse_ultra::tags::add_rule(c, &keyword, &tag_name)?;
+                        println!("ultra: rule {id} — keyword='{keyword}' → tag='{tag_name}'");
+                    }
+                    TagsCmd::Rules => {
+                        let rules = synapse_ultra::tags::list_rules(c)?;
+                        if rules.is_empty() {
+                            println!("ultra: no auto-tag rules");
+                        } else {
+                            println!("# auto-tag rules ({})", rules.len());
+                            println!("id\tkeyword\ttag\tenabled");
+                            for r in rules {
+                                println!("{}\t{}\t{}\t{}", r.id, r.keyword, r.tag_name, r.enabled);
+                            }
+                        }
+                    }
+                    TagsCmd::Merge { from, into } => {
+                        let n = synapse_ultra::tags::merge_tags(c, &from, &into)?;
+                        println!("ultra: merged '{from}' into '{into}' — {n} associations repointed");
+                    }
+                    TagsCmd::Cleanup => {
+                        let n = synapse_ultra::tags::cleanup_orphans(c)?;
+                        println!("ultra: removed {n} orphan tags");
+                    }
+                    TagsCmd::Stats => {
+                        let s = synapse_ultra::tags::stats(c)?;
+                        println!("# tag stats");
+                        println!("  total_tags:         {}", s.total_tags);
+                        println!("  total_associations: {}", s.total_associations);
+                        println!("  total_rules:        {}", s.total_rules);
+                        if !s.top_tags.is_empty() {
+                            println!("  top_tags:");
+                            for (name, count) in s.top_tags {
+                                println!("    {name}: {count}");
+                            }
+                        }
+                    }
+                    TagsCmd::Export => {
+                        let export = synapse_ultra::tags::export(c)?;
+                        println!("{}", serde_json::to_string_pretty(&export)?);
+                    }
+                    TagsCmd::Import { path } => {
+                        let content = std::fs::read_to_string(&path)?;
+                        let data: synapse_ultra::tags::TagExport = serde_json::from_str(&content)?;
+                        let n = synapse_ultra::tags::import(c, &data)?;
+                        println!("ultra: imported {n} items from {}", path.display());
+                    }
+                }
+                Ok(())
+            })?;
         }
     }
     Ok(())

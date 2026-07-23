@@ -30,7 +30,9 @@ pub mod events;
 pub mod graph;
 pub mod lake;
 pub mod observe;
+pub mod ops;
 pub mod schema;
+pub mod tags;
 
 pub use error::{UltraError, UltraResult};
 pub use events::{Event, EventFilter, EventKind};
@@ -40,6 +42,8 @@ pub use observe::{
     AgentSummary, AgentTraceRow, BrainStats, CostRow, DailySummary, DecisionRow, ReplayEntry,
     SessionRow, SessionTimelineRow,
 };
+pub use ops::{health_check, HealthCheck, HealthReport};
+pub use tags::{Tag, DocTag, TagRule, TagStats, TagExport};
 
 use parking_lot::Mutex;
 use rusqlite::Connection;
