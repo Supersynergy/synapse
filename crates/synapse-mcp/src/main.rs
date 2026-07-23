@@ -326,6 +326,10 @@ async fn handle(sock: &PathBuf, req: &JsonRpc) -> Result<Value> {
                 "agent": {"type": "string"},
                 "limit": {"type": "integer", "default": 50}
             }}},
+            {"name": "ultra_search", "description": "Full-text search over synapse_events.content via the FTS5 index (porter + unicode61 tokenizer). Returns rows ordered by bm25 relevance. Query syntax: unquoted terms, \"exact phrase\", OR, * prefix. Use to find events by content keywords. Reads brain.db directly.", "inputSchema": {"type": "object", "properties": {
+                "query": {"type": "string", "description": "FTS5 query string (e.g. 'refactor', 'error timeout', '\"exact phrase\"', 'refactor* OR test*')"},
+                "limit": {"type": "integer", "default": 50, "description": "Max results (cap 1000)"}
+            }, "required": ["query"]}},
             // ── Low-level tools ───────────────────────────────────────────────
             {"name": "put", "description": "Append a memory.", "inputSchema": {"type": "object", "properties": {
                 "text": {"type": "string"}, "title": {"type": "string"}, "uri": {"type": "string"}, "embed": {"type": "boolean"}
@@ -425,6 +429,7 @@ async fn tool_call(sock: &PathBuf, name: &str, args: Value) -> Result<Value> {
         "daily_summary" => return daily_summary(&args).await,
         "session_timeline" => return session_timeline(&args).await,
         "list_sessions" => return list_sessions(&args).await,
+        "ultra_search" => return ultra_search(&args).await,
         _ => {}
     }
 
@@ -2547,6 +2552,44 @@ async fn list_sessions(args: &Value) -> Result<Value> {
         })
         .collect();
     Ok(json!({"sessions": sessions, "count": sessions.len()}))
+}
+
+async fn ultra_search(args: &Value) -> Result<Value> {
+    let query = args
+        .get("query")
+        .and_then(|v| v.as_str())
+        .context("ultra_search requires 'query' (FTS5 query string)")?;
+    let limit = args
+        .get("limit")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(50)
+        .clamp(1, 1000);
+    let path = ultra_brain_path()?;
+    if !path.exists() {
+        return Ok(json!({"hits": [], "note": "brain.db not found", "path": path}));
+    }
+    let ultra = synapse_ultra::Ultra::open(&path)
+        .with_context(|| format!("open brain.db failed: {}", path.display()))?;
+    ultra.migrate().ok();
+    let rows = ultra.with_conn(|c| {
+        synapse_ultra::events::search_events(c, query, Some(limit))
+    })?;
+    let hits: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.id,
+                "ts": r.ts,
+                "session_id": r.session_id,
+                "agent": r.agent,
+                "kind": r.kind,
+                "uri": r.uri,
+                "content": r.content,
+                "meta": r.meta,
+            })
+        })
+        .collect();
+    Ok(json!({"query": query, "hits": hits, "count": hits.len()}))
 }
 
 #[cfg(test)]

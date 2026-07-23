@@ -10,6 +10,7 @@
 //!   synapse-ultra replay --db PATH --session ID [--limit N]
 //!   synapse-ultra cost --db PATH [--since -7d] [--by agent|model|day]
 //!   synapse-ultra events --db PATH [--agent X] [--kind Y] [--session S] [--limit N]
+//!   synapse-ultra search --db PATH "fts5 query" [--limit N]
 //!   synapse-ultra lake init   --db PATH [--catalog PATH]
 //!   synapse-ultra lake archive --db PATH --older-than DAYS [--catalog PATH]
 //!   synapse-ultra lake analytics --db PATH [--catalog PATH]
@@ -140,6 +141,13 @@ enum Cmd {
     Sessions {
         #[arg(long)]
         agent: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: i64,
+    },
+    /// Full-text search over event content via FTS5.
+    Search {
+        /// FTS5 query (e.g. 'refactor', 'error timeout', '"exact phrase"', 'refactor* OR test*').
+        query: String,
         #[arg(long, default_value_t = 50)]
         limit: i64,
     },
@@ -481,6 +489,26 @@ fn run() -> Result<()> {
             println!("session_id\tagent\tevents\tdecisions\tfirst_ts\tlast_ts\tcost_usd");
             for r in rows {
                 println!("{}\t{}\t{}\t{}\t{}\t{}\t{:.4}", r.session_id, r.agent, r.events, r.decisions, r.first_ts, r.last_ts, r.cost_usd);
+            }
+        }
+        Cmd::Search { query, limit } => {
+            ultra.migrate()?;
+            let rows = ultra.with_conn(|c| {
+                synapse_ultra::events::search_events(c, &query, Some(limit))
+            })?;
+            if rows.is_empty() {
+                println!("ultra: search — no hits for '{query}'");
+                return Ok(());
+            }
+            println!("# ultra search: '{query}' ({} hits)", rows.len());
+            for r in rows {
+                let content = r.content.unwrap_or_default();
+                let preview = if content.len() > 100 {
+                    format!("{}…", &content[..100])
+                } else {
+                    content
+                };
+                println!("[{}] {} {} uri={} {}", r.ts, r.agent, r.kind, r.uri.unwrap_or_default(), preview);
             }
         }
     }
