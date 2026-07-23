@@ -1,0 +1,3 @@
+# Datasets are downloaded by `python3 eval/harness.py download`
+*
+!.gitignore

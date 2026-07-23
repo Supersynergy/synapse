@@ -12,25 +12,61 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: fmt · clippy · check · test
+  lint:
+    name: fmt · clippy · layering
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive # pulls vendor/synapse-db (foundation crates)
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@nextest
       - name: layering (ADR 0001)
         run: python3 scripts/check-layering.py
       - name: rustfmt
         run: cargo fmt --all --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: test · ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux-x64
+            runner: ubuntu-latest
+          - os: linux-arm64
+            runner: ubuntu-24.04-arm
+          - os: macos-x64
+            runner: macos-13
+          - os: macos-arm64
+            runner: macos-14
+          - os: windows-x64
+            runner: windows-2022
+          - os: windows-arm64
+            runner: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}
+      - uses: taiki-e/install-action@nextest
+        if: matrix.os != 'windows-arm64'
       - name: check
         run: cargo check --workspace
       - name: test
-        run: cargo nextest run --workspace --no-fail-fast
+        shell: bash
+        run: |
+          if command -v cargo-nextest >/dev/null 2>&1; then
+            cargo nextest run --workspace --no-fail-fast
+          else
+            cargo test --workspace --no-fail-fast
+          fi
+
