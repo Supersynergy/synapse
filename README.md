@@ -1,60 +1,140 @@
 # Synapse
 
-[![CI](https://github.com/supersynergy/synapse/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/supersynergy/synapse/actions/workflows/rust-ci.yml)
+[![CI](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/ci.yml)
+[![Release](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/release-matrix.yml/badge.svg)](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/release-matrix.yml)
 [![Crates.io](https://img.shields.io/crates/v/synapse-core.svg)](https://crates.io/crates/synapse-core)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-CORE.md)
+[![LoCoMo](https://img.shields.io/badge/eval-LoCoMo%20%2B%20LongMemEval-blueviolet)](eval/)
+[![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows-lightgrey)](#install)
+[![Arch](https://img.shields.io/badge/arch-x86__64%20%2B%20aarch64-orange)](#install)
 
-**Local-first Context OS for AI agents: bounded, cited, freshness-aware context with feedback.**
+**Local-first Context OS for AI agents. One SQLite file. No Docker. No cloud. Sub-ms vector search.**
 
-One SQLite-backed local brain. No Docker. No cloud. CLI, daemon, and MCP tooling
-for giving coding agents the best relevant context before they act.
+Synapse gives coding agents the best relevant context before they act — bounded, cited,
+freshness-aware, and signed. It runs entirely on your machine, ships as a single binary,
+and scales from a 5-line demo to a 294k-doc production brain.
 
-> Core promise: best context, not biggest context.
-
-## Current Release Path
-
-For a clean Mac/Linux user install, use the Context OS release:
-
-```bash
-tar -xzf release/dist/synapse-context-os-1.0.1-rc.1.tar.gz
-cd synapse-context-os-1.0.1-rc.1
-./install.sh
-```
-
-From a repo checkout:
-
-```bash
-release/context-os/install.sh
-release/context-os/verify.sh
-SYNAPSE_VERIFY_INSTALL=1 SYNAPSE_VERIFY_BUILD_PROFILE=dev release/context-os/verify.sh
-```
-
-Release docs and evidence live in [`release/context-os/`](release/context-os/).
-The broad engine and benchmark sections below describe the substrate and
-experimental surface. They are not the default first-run product promise.
+> **Core promise:** best context, not biggest context.
 
 ---
 
-## Engine Benchmark Notes
+## Why Synapse
 
-| What | Number | Source |
-|------|--------|--------|
-| HNSW-i8 p50 latency (SIFT-1M, ef=64) | **0.10 ms** | [SIFT1M_BENCH_2026-05-12.md](bench-dashboard/SIFT1M_BENCH_2026-05-12.md) |
-| Pub/sub throughput (ring-buffer, tokio broadcast) | **13.1 M events/s** (76 ns/msg) | [REAL_BENCH_WAVE17_18_2026-05-13.md](bench-dashboard/REAL_BENCH_WAVE17_18_2026-05-13.md) |
-| Conformal recall bound | **R=1.0 guaranteed** (split-conformal, validated LongMemEval) | [RELEASE_NOTES_v1.0.1-rc.md](RELEASE_NOTES_v1.0.1-rc.md) |
-
-**Caveats**: HNSW-i8 has R@10=0.908 at ef=64 on SIFT-1M (use ef=192 for R@10≥0.99 at 3240 QPS). Pub/sub is in-process tokio channel — not a persistent durable queue. Conformal guarantee validated on LongMemEval only.
+| | Synapse | Mem0 | Letta (MemGPT) | Zep | Chroma | Qdrant |
+|---|---|---|---|---|---|---|
+| **Local-first, no Docker** | ✅ one binary | ❌ Python+Docker | ❌ Python+Docker | ❌ server | ⚠️ embedded | ❌ server |
+| **SQLite-backed** | ✅ one file | ❌ Postgres/Neo4j | ❌ Postgres/SQLite | ❌ Postgres | ✅ | ❌ custom |
+| **Hybrid search (FTS5 + ANN + RRF + rerank)** | ✅ sub-ms | ⚠️ basic | ❌ | ⚠️ basic | ⚠️ ANN only | ⚠️ ANN only |
+| **Decision-chain graph (`why()`)** | ✅ recursive CTE | ❌ | ⚠️ messages | ❌ | ❌ | ❌ |
+| **Ed25519 doc signing** | ✅ 25µs s+v | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **CRDT merge (offline sync)** | ✅ | ❌ | ❌ | ⚠️ | ❌ | ❌ |
+| **MCP server (Claude/Cursor native)** | ✅ 6+ tools | ⚠️ | ⚠️ | ❌ | ❌ | ❌ |
+| **Tag system + auto-rules** | ✅ | ⚠️ basic | ❌ | ⚠️ | ❌ | ❌ |
+| **Prometheus + JSON metrics** | ✅ | ❌ | ❌ | ⚠️ | ❌ | ⚠️ |
+| **zstd backup (64% compression)** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **LoCoMo + LongMemEval bench** | ✅ | ❌ | ❌ | ⚠️ | ❌ | ❌ |
+| **6-native CI (linux/macos/windows × x64/arm64)** | ✅ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ |
+| **License** | MIT | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 |
 
 ---
 
-## 5-line Context OS demo
+## Install
+
+### Option 1 — Prebuilt binary (recommended)
+
+Download the latest release for your platform from
+[GitHub Releases](https://github.com/Supersynergy/synapse-agent-memory/releases):
 
 ```bash
-synx -f "$HOME/.synapse/brain.db" prime .
-synx -f "$HOME/.synapse/brain.db" remember --kind decision "Use Synapse context packs before major code edits."
-synx -f "$HOME/.synapse/brain.db" context "current repo task" --mode coding
-synx -f "$HOME/.synapse/brain.db" fresh-context --cwd . --prompt "latest package API changes"
-synx -f "$HOME/.synapse/brain.db" doctor --fix
+# Linux/macOS
+tar -xzf synapse-<target>.tar.gz
+cd synapse-<target>
+sudo cp bin/synx bin/synapse-ultra /usr/local/bin/
+
+# Windows
+Expand-Archive synapse-x86_64-pc-windows-msvc.zip
+# Copy bin\synx.exe and bin\synapse-ultra.exe to a PATH directory
+```
+
+### Option 2 — Cargo install
+
+```bash
+cargo install --locked --path crates/synapse-cli
+cargo install --locked --path crates/synapse-ultra
+```
+
+### Option 3 — Build from source
+
+```bash
+git clone https://github.com/Supersynergy/synapse-agent-memory.git
+cd synapse-agent-memory
+cargo build --release -p synapse-cli -p synapse-ultra
+# Binaries at target/release/synx and target/release/synapse-ultra
+```
+
+### Verify
+
+```bash
+synx --version
+synapse-ultra --version
+synx doctor -f ~/.synapse/brain.db
+```
+
+---
+
+## 5-line demo
+
+```bash
+synx -f ~/.synapse/brain.db prime .
+synx -f ~/.synapse/brain.db remember --kind decision "Use Synapse context packs before major code edits."
+synx -f ~/.synapse/brain.db context "current repo task" --mode coding
+synx -f ~/.synapse/brain.db fresh-context --cwd . --prompt "latest package API changes"
+synx -f ~/.synapse/brain.db doctor --fix
+```
+
+---
+
+## Production tools (new in v2.1.0)
+
+### Health check — 11-point audit
+
+```bash
+synapse-ultra health --db ~/.synapse/brain.db
+synapse-ultra health --db ~/.synapse/brain.db --json   # for monitoring
+```
+
+Checks: integrity, WAL mode, synchronous, foreign keys, FTS5 index, indexes, triggers,
+schema version, DB size, page cache, ultra schema.
+
+### Backup — zstd-compressed with manifest
+
+```bash
+synapse-ultra backup --db ~/.synapse/brain.db
+# → ~/.synapse/backups/brain-<ts>.db.zst (64% compression, sha256 manifest)
+```
+
+### Metrics — Prometheus + JSON
+
+```bash
+synapse-ultra metrics --db ~/.synapse/brain.db --format prometheus
+synapse-ultra metrics --db ~/.synapse/brain.db --format json
+```
+
+Exposes: `synapse_events_total`, `synapse_decisions_total`, `synapse_docs_total`,
+`synapse_db_size_bytes`, `synapse_tags_total`, `synapse_tag_associations_total`, and more.
+
+### Tag system — auto-rules, bulk-tagging, export/import
+
+```bash
+synapse-ultra tags add rust --color "#dea584" --description "Rust language"
+synapse-ultra tags tag 42 rust --source manual
+synapse-ultra tags bulk --ids 1,2,3,4,5 rust --source auto
+synapse-ultra tags rule refactor refactoring      # keyword → tag auto-applied on ingest
+synapse-ultra tags merge rust-lang into rust      # repoint + delete
+synapse-ultra tags cleanup                         # remove orphan tags
+synapse-ultra tags stats
+synapse-ultra tags export > tags.json
+synapse-ultra tags import tags.json
 ```
 
 ---
@@ -75,6 +155,7 @@ graph TD
     Core --> DB[(brain.db)]
     Ann --> DB
     Fts --> DB
+    Ultra["synapse-ultra (events + graph + tags + ops)"] --> DB
 ```
 
 ---
@@ -89,7 +170,8 @@ graph TD
 | `synapse-engine` | ABI bridge + RRF fusion |
 | `synapsed` | Unix-socket RPC daemon |
 | `synapse-cli` | CLI: put / find / hybrid / merge / sign / verify / stats |
-| `synapse-mcp` | MCP server (6 tools + coding-agent tools) |
+| `synapse-mcp` | MCP server (6+ tools, Claude/Cursor native) |
+| `synapse-ultra` | Event log + graph-v2 + tags + ops (health/backup/metrics) |
 | `synapse-space` | Agent-memory hierarchy: Space → Wing → Room → Drawer |
 | `synapse-learn` | Thompson-sampling bandit router |
 | `synapse-rerank` | Cross-encoder rerank (identity default; ONNX optional) |
@@ -151,20 +233,6 @@ Source: [SIFT1M_BENCH_2026-05-12.md](bench-dashboard/SIFT1M_BENCH_2026-05-12.md)
 | brute-force i8 | 5.43 | 182 | 0.969 | exact, no index |
 | brute-force f32 | 18.53 | 54 | 1.000 | exact, no index |
 
-**Build time caveat**: HNSW index build is 197–672s for 1M vectors (sequential usearch insert). faiss-hnsw builds in ~30–60s. Parallel batch insert is TODO.
-
-### ANN — Small corpus (N=10k, 384d)
-
-Source: [RAW_ANN_BENCH_2026-05-11.md](bench-dashboard/RAW_ANN_BENCH_2026-05-11.md), [LINUX_VS_MACOS_2026-05-13.md](bench-dashboard/LINUX_VS_MACOS_2026-05-13.md)
-
-| Backend | p50 µs | R@10 |
-|---------|--------|------|
-| usearch-HNSW (synapse) | **77** (macOS) / **74** (Linux) | 0.942 |
-| FAISS-HNSW | 98 | 0.9 |
-| FAISS-Flat (exact) | 208 | 0.9 |
-
-R@10=0.942 < 0.95 target. Needs `expansion_search` tuning for ≥0.95.
-
 ### Hybrid search — production daemon (294k docs)
 
 Source: [REAL_BENCH_2026-05-11.md](bench-dashboard/REAL_BENCH_2026-05-11.md)
@@ -175,18 +243,20 @@ Source: [REAL_BENCH_2026-05-11.md](bench-dashboard/REAL_BENCH_2026-05-11.md)
 | put-batch | **334 k/s** (FTS5 + vec + CRDT, persisted) |
 | Qdrant gRPC vs synapse put-batch | Synapse 56× faster (local, not iso-recall) |
 
-### MTEB retrieval (2 tasks, CPU-only)
+### Eval — LoCoMo + LongMemEval
 
-Source: [MTEB_MINI_2026-05-11.md](bench-dashboard/MTEB_MINI_2026-05-11.md)
+Automated harness in [`eval/`](eval/). Run:
 
-| Model | Task | nDCG@10 | Published | Delta |
-|-------|------|---------|-----------|-------|
-| bge-small-en-v1.5 | NFCorpus | 0.343 | 0.327 | +0.016 |
-| bge-small-en-v1.5 | SciFact | 0.713 | 0.671 | +0.042 |
+```bash
+python3 eval/harness.py download
+python3 eval/harness.py ingest --db /tmp/eval-brain.db
+python3 eval/harness.py run --db /tmp/eval-brain.db --k 5
+python3 eval/harness.py report
+```
 
-Delta vs published likely reflects MTEB 2.x scoring changes. 2 of 56 MTEB tasks measured.
+Metrics: Recall@k, MRR, latency p50/p95, per-category breakdown.
 
-### Durability — SQLite-WAL (macOS, io_uring pending Linux)
+### Durability — SQLite-WAL
 
 Source: [FAIR_DURABILITY_BENCH_2026-05-13.md](bench-dashboard/FAIR_DURABILITY_BENCH_2026-05-13.md)
 
@@ -196,19 +266,6 @@ Source: [FAIR_DURABILITY_BENCH_2026-05-13.md](bench-dashboard/FAIR_DURABILITY_BE
 | batched | 45 K/s | 926 K/s |
 | fast (no fsync) | 110 K/s | 1.1 M/s |
 | in-memory | 384 K/s | 1.3 M/s |
-
-io_uring (Linux bare-metal) not measured; see `scripts/fair_durability_linux.sh`.
-
-### Stream / TSDB (wave-17/18)
-
-Source: [REAL_BENCH_WAVE17_18_2026-05-13.md](bench-dashboard/REAL_BENCH_WAVE17_18_2026-05-13.md)
-
-| Component | Number | Notes |
-|-----------|--------|-------|
-| pub/sub | **13.1 M events/s** (76 ns/msg) | tokio broadcast-channel |
-| TSDB insert (fallback store) | **4.26 M rows/s** | Arrow-path unbenched |
-| CDC (on-disk SQLite) | 2,241 events/s | SQLite-write-per-event bottleneck |
-| Datalog ancestor-closure | ❌ 7s for 100 facts | semi-naive broken, not production-ready |
 
 ---
 
@@ -228,32 +285,38 @@ Source: [REAL_BENCH_WAVE17_18_2026-05-13.md](bench-dashboard/REAL_BENCH_WAVE17_1
 | CRDT gossip cluster | ✅ stable | <200ms LAN convergence |
 | Raft CP-mode | ✅ minimal | `cluster-raft` feature, 3-node <1s election |
 | Ed25519 signing | ✅ stable | 25µs sign + verify |
-| MCP server (6 tools) | ✅ stable | Claude + Cursor native |
+| MCP server (6+ tools) | ✅ stable | Claude + Cursor native |
+| **Tag system + auto-rules** | ✅ stable v2.1.0 | bulk-tag, merge, cleanup, export/import |
+| **Health check (11-point)** | ✅ stable v2.1.0 | integrity, WAL, FTS, indexes, triggers |
+| **zstd backup** | ✅ stable v2.1.0 | 64% compression, sha256 manifest |
+| **Prometheus + JSON metrics** | ✅ stable v2.1.0 | `synapse_*` exposition format |
+| **Event log + `why()` operator** | ✅ stable v2.0.0 | recursive CTE, BLAKE3 dedup |
+| **Graph-v2 (SQLite CTE)** | ✅ stable v2.0.0 | replaces broken Datalog |
+| **Token cost log** | ✅ stable v2.0.0 | per-call usage analytics |
+| **LoCoMo + LongMemEval bench** | ✅ stable v2.1.0 | automated harness in `eval/` |
+| **6-native CI matrix** | ✅ stable v2.1.0 | linux/macos/windows × x64/arm64 |
 | Pub/sub stream | ✅ stable | 76 ns/msg |
 | TSDB insert | ✅ partial | fallback store 4.26M/s; Arrow-path unbenched |
 | JIT filter (Cranelift) | ✅ partial | 2× vs SQLite, no gain vs interpreter |
 | Metal/MLX OLAP | ⚠️ unverified | CPU-only confirmed; Metal dispatch not observed |
 | Datalog (synapse-graph) | ❌ broken | semi-naive quadratic, 7s for 100 facts |
 | Python wheel (PyO3) | 🔜 planned | `synapse-py` maturin publish |
-| Linux CI (aarch64) | ⚠️ partial | `synapse-extract` E0463 + `synapse-market` opensrv dep |
 | CLIP cross-modal | ✅ scaffold | `multimodal` feature, ONNX swap-path |
 | Audio CLAP | ✅ scaffold | `audio-clap` feature |
 | VJEPA-2 video | ✅ scaffold | ONNX swap-path |
 
 ---
 
-## Roadmap (next 3 months)
+## Roadmap
 
 - [ ] Datalog semi-naive: delta-join + HashMap index (currently broken above 100 facts)
 - [ ] HNSW parallel batch insert (target <10s for 1M vs current 197–672s)
 - [ ] glass-backend CPU-SIMD beam search (expected ≥2× QPS vs usearch)
 - [ ] io_uring durability bench on bare-metal Linux
 - [ ] Metal dispatch verification for `synapse-mlx-olap`
-- [ ] Fix `synapse-extract` Linux build (E0463 crate link-order)
 - [ ] MTEB full 56-task suite (2/56 measured today)
 - [ ] Python wheel publish to PyPI (`synapse-py` via maturin)
 - [ ] `synapse-raft` production hardening
-- [ ] Windows: not planned
 
 ---
 

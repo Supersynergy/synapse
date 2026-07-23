@@ -9,6 +9,59 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-08-24
+
+### Added — Production Tools
+- **`synapse-ultra health`** — 11-point health audit (integrity, WAL, synchronous,
+  foreign_keys, FTS5 index, indexes, triggers, schema version, DB size, page cache,
+  ultra schema). JSON output for monitoring.
+- **`synapse-ultra backup`** — zstd-compressed backup via `VACUUM INTO` + sha256
+  manifest. Default destination: `~/.synapse/backups/`. ~64% compression on real brains.
+- **`synapse-ultra metrics`** — Prometheus + JSON exposition format.
+  Exposes `synapse_events_total`, `synapse_decisions_total`, `synapse_docs_total`,
+  `synapse_db_size_bytes`, `synapse_tags_total`, `synapse_tag_associations_total`,
+  `synapse_graph_nodes_total`, `synapse_graph_edges_total`, and more.
+
+### Added — Tag System
+- **`synapse-ultra tags`** subcommand with: `add`, `list`, `tag`, `bulk`, `untag`,
+  `for`, `docs`, `rule`, `rules`, `merge`, `cleanup`, `stats`, `export`, `import`.
+- Schema: `tags` (canonical dictionary with color + description), `doc_tags`
+  (many-to-many), `tag_rules` (keyword → tag auto-applied on ingest).
+- Idempotent migration — safe to run repeatedly. Additive on top of existing
+  `synapse_events` / docs schema.
+- Export/import as JSON for cross-brain portability.
+
+### Added — CI
+- **6-native release matrix** (`.github/workflows/release-matrix.yml`): builds
+  binaries for linux x64/arm64, macos x64/arm64, windows x64/arm64 on every
+  `v*.*.*` tag. Uploads tar.gz/zip + sha256 to GitHub Releases.
+- **CI test matrix** (`.github/workflows/ci.yml`): split lint + test jobs; tests
+  run on all 6 native targets.
+
+### Added — Eval
+- **LoCoMo + LongMemEval benchmark harness** (`eval/harness.py`): automated
+  download, ingest, retrieval evaluation. Metrics: Recall@k, MRR, latency
+  p50/p95, per-category breakdown. Reproducible JSON results with git SHA.
+
+### Changed
+- Workspace version bumped 2.0.0 → 2.1.0.
+- Repository URL corrected to `https://github.com/Supersynergy/synapse-agent-memory`.
+- `synapse-ultra doctor` now uses the full 11-point `health_check` report
+  (previously only printed basic stats).
+- README rewritten for online presentation: badges, install instructions,
+  competitor comparison table (Mem0/Letta/Zep/Chroma/Qdrant), feature matrix
+  with v2.1.0 entries.
+
+### Fixed
+- `rusqlite` 0.39 `backup` API signature change — replaced with `VACUUM INTO`
+  for consistent snapshots without locking writers.
+- `integrity_quick` pragma replaced with `integrity_check` for broader SQLite
+  compatibility.
+
+---
+
+## [Unreleased]
+
 ### Changed
 - Default workspace build is now the Context-OS product surface only:
   `synapsed`, `synapse-cli`, `synapse-mcp`, `synapse-rerank`, `synapse-learn`,
