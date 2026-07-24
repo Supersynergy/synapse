@@ -43,6 +43,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Public CI checkout no longer tries to clone `/Users/master/projects/synapse-db`.
 - Third-party GitHub Actions are pinned to verified commit SHAs.
 - Retired `macos-13` CI runners are replaced with `macos-15-intel`.
+- Root license and RustSec policy now covers the in-repo public substrate;
+  no-fix transitive advisories carry dated removal triggers.
 - Rust 1.95 lint drift across tests, examples, and benchmarks no longer blocks
   the public `fmt · clippy · layering` gate.
 - Portable `--no-default-features` builds store text without silently requiring
