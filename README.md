@@ -1,7 +1,7 @@
 # Synapse Memory
 
-[![CI](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/ci.yml)
-[![Release](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/release-matrix.yml/badge.svg)](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/release-matrix.yml)
+[![CI](https://github.com/Supersynergy/synapse-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse-memory/actions/workflows/ci.yml)
+[![Release](https://github.com/Supersynergy/synapse-memory/actions/workflows/release-matrix.yml/badge.svg)](https://github.com/Supersynergy/synapse-memory/actions/workflows/release-matrix.yml)
 [![Crates.io](https://img.shields.io/crates/v/synapse-core.svg)](https://crates.io/crates/synapse-core)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-CORE.md)
 [![LoCoMo](https://img.shields.io/badge/eval-LoCoMo%20%2B%20LongMemEval-blueviolet)](eval/)
@@ -43,7 +43,7 @@ and scales from a 5-line demo to a 294k-doc production brain.
 ### Option 1 — Prebuilt binary (recommended)
 
 Download the latest release for your platform from
-[GitHub Releases](https://github.com/Supersynergy/synapse-agent-memory/releases):
+[GitHub Releases](https://github.com/Supersynergy/synapse-memory/releases):
 
 ```bash
 # Linux/macOS
@@ -66,7 +66,7 @@ cargo install --locked --path crates/synapse-ultra
 ### Option 3 — Build from source
 
 ```bash
-git clone https://github.com/Supersynergy/synapse-agent-memory.git
+git clone https://github.com/Supersynergy/synapse-memory.git
 cd synapse-agent-memory
 cargo build --release -p synapse-cli -p synapse-ultra
 # Binaries at target/release/synx and target/release/synapse-ultra

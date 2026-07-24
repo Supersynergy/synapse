@@ -10,7 +10,7 @@ earlier `synapse-memory-v1.1.0-rc.1` archive through the compatibility route.
 
 The corrected six-target candidate matrix passes on merge commit
 `b050e200af93660ab43feb8a0dfbe7fb9b9bcb62` in
-[GitHub Actions run 29429954455](https://github.com/Supersynergy/synapse-agent-memory/actions/runs/29429954455).
+[GitHub Actions run 29429954455](https://github.com/Supersynergy/synapse-memory/actions/runs/29429954455).
 Publication remains fail-closed: the release job runs only for a matching
 `synapse-agent-memory-v*` tag after preflight, all six native executions,
 packaging, and checksum validation succeed.

@@ -22,6 +22,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Changed
 - Public substrate crates now build from this checkout; no machine-local
   submodule is required.
+- Canonical repository URLs now target
+  `https://github.com/Supersynergy/synapse-memory`.
 - The public `synapsed` `licensed` feature is now an explicit free-tier stub;
   the proprietary license backend is not shipped or referenced by local path.
 - Default workspace build is now the Context-OS product surface only:
@@ -94,7 +96,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 - Workspace version bumped 2.0.0 → 2.1.0.
-- Repository URL corrected to `https://github.com/Supersynergy/synapse-agent-memory`.
+  - Repository URL corrected to `https://github.com/Supersynergy/synapse-memory`.
 - `synapse-ultra doctor` now uses the full 11-point `health_check` report
   (previously only printed basic stats).
 - README rewritten for online presentation: badges, install instructions,
