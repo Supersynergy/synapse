@@ -44,8 +44,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Fixed
 - Public CI checkout no longer tries to clone `/Users/master/projects/synapse-db`.
 - Third-party GitHub Actions are pinned to verified commit SHAs.
-- macOS CI uses current `macos-15` / `macos-15-intel` runners, avoiding the
-  `ring 0.17.14` feature-detection failure on GitHub's `macos-14` image.
+  - macOS CI uses current `macos-15` / `macos-15-intel` runners and declares
+    Apple Silicon's guaranteed NEON/AES/SHA-2 baseline explicitly, working
+    around `ring 0.17.14` feature detection on GitHub-hosted ARM runners.
 - Root license and RustSec policy now covers the in-repo public substrate;
   no-fix transitive advisories carry dated removal triggers.
 - Rust 1.95 lint drift across tests, examples, and benchmarks no longer blocks
