@@ -43,7 +43,7 @@ jobs:
           - os: macos-x64
             runner: macos-15-intel
           - os: macos-arm64
-            runner: macos-14
+            runner: macos-15
           - os: windows-x64
             runner: windows-2022
           - os: windows-arm64
