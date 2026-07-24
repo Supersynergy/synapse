@@ -47,6 +47,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   - macOS CI uses current `macos-15` / `macos-15-intel` runners and declares
     Apple Silicon's guaranteed NEON/AES/SHA-2 baseline explicitly, working
     around `ring 0.17.14` feature detection on GitHub-hosted ARM runners.
+  - CI runs the full native stack on Linux and Apple Silicon, while Intel macOS
+    and Windows verify the portable CLI without unsupported ORT/usearch native
+    dependencies. Platform-only examples now keep a portable fallback entrypoint.
 - Root license and RustSec policy now covers the in-repo public substrate;
   no-fix transitive advisories carry dated removal triggers.
 - Rust 1.95 lint drift across tests, examples, and benchmarks no longer blocks
