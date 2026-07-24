@@ -17,7 +17,7 @@ serde_json.workspace = true
 rusqlite.workspace = true
 blake3.workspace = true
 tracing.workspace = true
-synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core", default-features = false, features = ["backend-rusqlite"] }
+synapse-core = { path = "../synapse-core", default-features = false, features = ["backend-rusqlite"] }
 
 # Magic-bytes MIME detection (always on)
 infer = "0.16"

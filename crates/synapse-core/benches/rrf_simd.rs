@@ -3,7 +3,8 @@
 //! Run:
 //!   cargo bench -p synapse-core --bench rrf_simd --features turbo
 
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
+use std::hint::black_box;
 
 fn rrf_scalar(ranks: &[f64], k: f64) -> Vec<f64> {
     ranks.iter().map(|&r| 1.0 / (k + r)).collect()

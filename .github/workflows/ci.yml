@@ -16,13 +16,11 @@ jobs:
     name: fmt · clippy · layering
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # pinned 2026-06-20
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: layering (ADR 0001)
         run: python3 scripts/check-layering.py
       - name: rustfmt
@@ -42,7 +40,7 @@ jobs:
           - os: linux-arm64
             runner: ubuntu-24.04-arm
           - os: macos-x64
-            runner: macos-13
+            runner: macos-15-intel
           - os: macos-arm64
             runner: macos-14
           - os: windows-x64
@@ -50,15 +48,15 @@ jobs:
           - os: windows-arm64
             runner: windows-11-arm
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # pinned 2026-06-20
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: ${{ matrix.os }}
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2
         if: matrix.os != 'windows-arm64'
+        with:
+          tool: nextest
       - name: check
         run: cargo check --workspace
       - name: test
@@ -69,4 +67,3 @@ jobs:
           else
             cargo test --workspace --no-fail-fast
           fi
-

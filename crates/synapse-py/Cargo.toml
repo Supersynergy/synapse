@@ -22,7 +22,7 @@ crate-type = ["rlib"]
 pyo3         = { version = "0.24", features = ["extension-module", "abi3-py39"] }
 serde_json   = "1"
 parking_lot  = "0.12"
-synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core", default-features = false, features = ["turbo"] }
+synapse-core = { path = "../synapse-core", default-features = false, features = ["turbo"] }
 
 [features]
 default = ["simsimd"]

@@ -5,8 +5,6 @@ members = ["crates/*"]
 # built on demand (cd into it or `-p` from its own dir), not by the default
 # `cargo check --workspace`. Rationale: docs/adr/0001-context-os-product-boundary.md.
 exclude = [
-    # substrate (vendored, built by the product crates that path-depend on it)
-    "vendor/synapse-db",
     # language bindings — not part of the default product build
     "crates/synapse-py",
     "crates/synapse-js",

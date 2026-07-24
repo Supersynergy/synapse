@@ -18,6 +18,8 @@ const N: usize = 100_000;
 const DIM: usize = 384;
 const ITERS: usize = 15;
 
+type EmbeddingRow = (i64, Vec<f32>);
+
 fn corpus(n: usize, d: usize) -> Vec<f32> {
     let mut state: u64 = 0xDEAD_BEEF_CAFE_BABE;
     let mut out = Vec::with_capacity(n * d);
@@ -76,7 +78,7 @@ fn main() {
     #[cfg(feature = "simsimd")]
     let int8_us = {
         use synapse_core::turbo::inmem_i8_index::InMemoryI8Index;
-        let rows: Vec<(i64, Vec<f32>)> = db
+        let rows: Vec<EmbeddingRow> = db
             .chunks(DIM)
             .enumerate()
             .map(|(i, r)| (i as i64, r.to_vec()))
@@ -93,7 +95,7 @@ fn main() {
     let pipeline_us = {
         use synapse_core::turbo::inmem_hamming_index::InMemoryHammingIndex;
         use synapse_core::turbo::inmem_i8_index::InMemoryI8Index;
-        let rows: Vec<(i64, Vec<f32>)> = db
+        let rows: Vec<EmbeddingRow> = db
             .chunks(DIM)
             .enumerate()
             .map(|(i, r)| (i as i64, r.to_vec()))

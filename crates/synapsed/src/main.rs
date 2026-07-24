@@ -187,58 +187,7 @@ fn open_store(
     pubkey_hex: &str,
 ) -> Result<Store> {
     #[cfg(feature = "licensed")]
-    {
-        let jwt_path = license_jwt_path.clone().unwrap_or_else(|| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".config/synapse/license.jwt")
-        });
-        if jwt_path.exists() {
-            let jwt = match std::fs::read_to_string(&jwt_path) {
-                Ok(s) => s.trim().to_owned(),
-                Err(e) => {
-                    warn!(
-                        "failed to read license file {}: {e} — falling back to free tier",
-                        jwt_path.display()
-                    );
-                    return Store::open(file).context("open store (free tier)");
-                }
-            };
-            let pubkey_bytes = match hex::decode(pubkey_hex) {
-                Ok(b) if b.len() == 32 => b,
-                _ => {
-                    warn!(
-                        "invalid --license-pubkey (must be 32-byte hex) — falling back to free tier"
-                    );
-                    return Store::open(file).context("open store (free tier)");
-                }
-            };
-            match synapse_license::verify_license(&jwt, &pubkey_bytes) {
-                Ok(license) => {
-                    info!(
-                        "license verified: customer={} tier={}",
-                        license.customer_id, license.tier
-                    );
-                    let hw_fp = synapse_license::current_hw_fingerprint();
-                    // Use the raw JWT bytes as the "signature" material for brain_key derivation.
-                    let brain_key = synapse_core::db::derive_brain_key(jwt.as_bytes(), &hw_fp);
-                    info!("brain_key derived — opening encrypted store");
-                    return Store::open_with_brain_key(file, &brain_key)
-                        .context("open encrypted store");
-                }
-                Err(e) => {
-                    warn!("license invalid ({e}) — falling back to free tier (unencrypted)");
-                    return Store::open(file).context("open store (free tier)");
-                }
-            }
-        } else {
-            info!(
-                "no license file found at {} — running free tier",
-                jwt_path.display()
-            );
-        }
-    }
-    #[cfg(not(feature = "licensed"))]
+    warn!("licensed storage is not part of the public source build; running the free tier");
     let _ = (license_jwt_path, pubkey_hex);
     Store::open(file).context("open store")
 }

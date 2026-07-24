@@ -7,8 +7,10 @@
 //! chain (what does this URI lead to?).
 
 use crate::UltraResult;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::collections::HashSet;
+
+type FrontierNode = (String, String, i64, String);
 
 /// A node in the graph.
 #[derive(Debug, Clone)]
@@ -57,6 +59,10 @@ pub fn upsert_node(
 }
 
 /// Insert or update an edge. On conflict (same from/to/rel), update weight + ts.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "stable public graph API; grouping fields would be a breaking change"
+)]
 pub fn upsert_edge(
     conn: &Connection,
     from_uri: &str,
@@ -110,7 +116,7 @@ pub fn why(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult<Vec<WhyS
     });
 
     // BFS frontier: Vec<(uri, kind, depth, path)>.
-    let mut frontier: Vec<(String, String, i64, String)> =
+    let mut frontier: Vec<FrontierNode> =
         vec![(start_uri.clone(), start_kind.clone(), 0, start_uri.clone())];
 
     let edge_sql = r#"
@@ -122,7 +128,7 @@ pub fn why(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult<Vec<WhyS
     "#;
 
     while !frontier.is_empty() {
-        let mut next: Vec<(String, String, i64, String)> = Vec::new();
+        let mut next: Vec<FrontierNode> = Vec::new();
         for (cur_uri, _cur_kind, depth, path) in &frontier {
             if *depth >= max_depth - 1 {
                 continue;
@@ -150,11 +156,7 @@ pub fn why(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult<Vec<WhyS
         frontier = next;
     }
 
-    out.sort_by(|a, b| {
-        a.depth
-            .cmp(&b.depth)
-            .then_with(|| a.uri.cmp(&b.uri))
-    });
+    out.sort_by(|a, b| a.depth.cmp(&b.depth).then_with(|| a.uri.cmp(&b.uri)));
     Ok(out)
 }
 
@@ -186,7 +188,7 @@ pub fn graph_expand(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult
         path: start_uri.clone(),
     });
 
-    let mut frontier: Vec<(String, String, i64, String)> =
+    let mut frontier: Vec<FrontierNode> =
         vec![(start_uri.clone(), start_kind.clone(), 0, start_uri.clone())];
 
     let edge_sql = r#"
@@ -198,7 +200,7 @@ pub fn graph_expand(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult
     "#;
 
     while !frontier.is_empty() {
-        let mut next: Vec<(String, String, i64, String)> = Vec::new();
+        let mut next: Vec<FrontierNode> = Vec::new();
         for (cur_uri, _cur_kind, depth, path) in &frontier {
             if *depth >= max_depth - 1 {
                 continue;
@@ -224,11 +226,7 @@ pub fn graph_expand(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult
         frontier = next;
     }
 
-    out.sort_by(|a, b| {
-        a.depth
-            .cmp(&b.depth)
-            .then_with(|| a.uri.cmp(&b.uri))
-    });
+    out.sort_by(|a, b| a.depth.cmp(&b.depth).then_with(|| a.uri.cmp(&b.uri)));
     Ok(out)
 }
 
@@ -305,7 +303,8 @@ pub fn to_dot(conn: &Connection, uri: &str, max_depth: i64) -> UltraResult<Strin
     let steps = graph_expand(conn, uri, max_depth)?;
     let mut dot = String::from("digraph synapse {\n  rankdir=LR;\n  node [shape=box];\n");
     let mut seen_nodes: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut seen_edges: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    let mut seen_edges: std::collections::HashSet<(String, String)> =
+        std::collections::HashSet::new();
     for s in &steps {
         if seen_nodes.insert(s.uri.clone()) {
             dot.push_str(&format!("  \"{}\" [label=\"{}\"];\n", s.uri, s.uri));

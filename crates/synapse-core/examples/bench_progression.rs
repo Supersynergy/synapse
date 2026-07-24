@@ -14,6 +14,8 @@ const DIM: usize = 384;
 const MRL_K: usize = 128;
 const ITERS: usize = 20;
 
+type EmbeddingRow = (i64, Vec<f32>);
+
 fn make_corpus(n: usize, d: usize) -> Vec<f32> {
     let mut state: u64 = 0xDEAD_BEEF_CAFE_BABE;
     let mut out = Vec::with_capacity(n * d);
@@ -171,7 +173,7 @@ fn main() {
     #[cfg(feature = "simsimd")]
     {
         use synapse_core::turbo::inmem_f16_index::InMemoryF16Index;
-        let rows_pairs: Vec<(i64, Vec<f32>)> = db
+        let rows_pairs: Vec<EmbeddingRow> = db
             .chunks(DIM)
             .enumerate()
             .map(|(i, r)| (i as i64, r.to_vec()))
@@ -190,7 +192,7 @@ fn main() {
     {
         use synapse_core::turbo::inmem_hamming_index::InMemoryHammingIndex;
         use synapse_core::turbo::inmem_i8_index::InMemoryI8Index;
-        let rows_pairs: Vec<(i64, Vec<f32>)> = db
+        let rows_pairs: Vec<EmbeddingRow> = db
             .chunks(DIM)
             .enumerate()
             .map(|(i, r)| (i as i64, r.to_vec()))

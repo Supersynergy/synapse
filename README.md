@@ -94,6 +94,28 @@ synx -f ~/.synapse/brain.db doctor --fix
 
 ---
 
+## SSD-friendly high-frequency ingest
+
+Applications can submit newline-delimited JSON documents with one process and
+one SQLite transaction:
+
+```bash
+printf '%s\n' \
+  '{"title":"hook:one","text":"alpha","meta":{"kind":"session"}}' \
+  '{"title":"hook:two","text":"beta","meta":{"kind":"session"}}' |
+  synx -f ~/.synapse/brain.db put-batch
+```
+
+For frequent hooks, the optional
+[`integrations/writeback`](integrations/writeback/README.md) service keeps a
+bounded 120-second/64-item/4-MiB window in RAM, deduplicates events, and flushes
+with `put-batch`. Failure or overflow uses an owner-only, locked spill file.
+Critical writes continue to use direct `put`/`remember`.
+
+Design contract: [ADR 0009](docs/adr/0009-bounded-writeback.md).
+
+---
+
 ## Production tools (new in v2.1.0)
 
 ### Health check — 11-point audit

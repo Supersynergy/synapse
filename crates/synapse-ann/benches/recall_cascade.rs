@@ -6,7 +6,9 @@
 //! Compares recall@10 of plain `search` vs cascade `search_with_rerank(mult=4)`
 //! against brute-force ground truth on a 5k × 128d synthetic set.
 
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
+#[cfg(feature = "ann-usearch")]
+use std::hint::black_box;
 
 #[cfg(feature = "ann-usearch")]
 fn vector(seed: u64, dim: usize) -> Vec<f32> {

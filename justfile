@@ -1,11 +1,10 @@
-# synapse-memory — agent memory (depends on synapse-db via vendor/ submodule)
+# synapse-memory — local-first agent memory
 set shell := ["bash", "-uc"]
 
 default: check
 
-# init the vendored synapse-db foundation, then verify toolchain
+# verify the pinned toolchain; all public source is in this checkout
 setup:
-    git submodule update --init --recursive
     rustup show
 
 # fmt + clippy + type check + layering guard (fast gate)

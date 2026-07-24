@@ -24,9 +24,7 @@ fn percentile(mut xs: Vec<f64>, p: f64) -> f64 {
 
 fn bench(label: &str, e: &dyn TextEmbedder, texts: &[String], iters: usize) {
     // Warmup
-    let _ = e
-        .embed_batch(&texts[..1.min(texts.len())].to_vec())
-        .unwrap();
+    let _ = e.embed_batch(&texts[..1.min(texts.len())]).unwrap();
 
     // Single-doc latency
     let mut singles = Vec::with_capacity(iters);
@@ -51,7 +49,7 @@ fn bench(label: &str, e: &dyn TextEmbedder, texts: &[String], iters: usize) {
         let mut totals = Vec::with_capacity(20);
         for _ in 0..20 {
             let t0 = Instant::now();
-            let _ = e.embed_batch(&texts[..bs].to_vec()).unwrap();
+            let _ = e.embed_batch(&texts[..bs]).unwrap();
             totals.push(t0.elapsed().as_secs_f64() * 1000.0);
         }
         let p50 = percentile(totals.clone(), 0.50);

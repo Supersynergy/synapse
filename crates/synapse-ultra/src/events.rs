@@ -6,7 +6,7 @@
 
 use crate::UltraResult;
 use chrono::Utc;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 /// Event kinds. Extensible — unknown kinds are stored as-is (TEXT column).
@@ -43,6 +43,10 @@ impl EventKind {
         }
     }
 
+    #[expect(
+        clippy::should_implement_trait,
+        reason = "stable infallible API predates the fallible FromStr contract"
+    )]
     pub fn from_str(s: &str) -> Self {
         match s {
             "session_start" => Self::SessionStart,
@@ -57,6 +61,14 @@ impl EventKind {
             "feedback" => Self::Feedback,
             other => Self::Custom(other.to_string()),
         }
+    }
+}
+
+impl std::str::FromStr for EventKind {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from_str(s))
     }
 }
 
@@ -279,6 +291,10 @@ pub fn ingest_event(conn: &Connection, event: &Event) -> UltraResult<i64> {
 ///
 /// Dedup key includes rationale + source + target so that two decisions
 /// on the same URI with different rationale are not collapsed.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "stable public ingest API; grouping fields would be a breaking change"
+)]
 pub fn ingest_decision(
     conn: &Connection,
     ts: i64,
@@ -311,7 +327,9 @@ pub fn ingest_decision(
         input.extend_from_slice(t.as_bytes());
     }
     let dedup: [u8; 32] = blake3::hash(&input).into();
-    let meta_json = meta.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default());
+    let meta_json = meta
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap_or_default());
 
     let existing: Option<i64> = conn
         .query_row(
@@ -355,6 +373,10 @@ pub fn ingest_decision(
 /// Ingest a token cost record.
 ///
 /// Upserts the session row so the FK on token_cost.session_id is satisfied.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "stable public ingest API; grouping fields would be a breaking change"
+)]
 pub fn ingest_token_cost(
     conn: &Connection,
     ts: i64,
@@ -368,7 +390,9 @@ pub fn ingest_token_cost(
     cost_usd: f64,
     meta: Option<serde_json::Value>,
 ) -> UltraResult<i64> {
-    let meta_json = meta.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default());
+    let meta_json = meta
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap_or_default());
     if let Some(sid) = session_id {
         conn.execute(
             "INSERT INTO sessions (session_id, agent, started_at)
@@ -445,8 +469,8 @@ pub struct EventRow {
 
 /// Ingest an event from a JSON string. Accepts the `Event` shape.
 pub fn ingest_event_json(conn: &Connection, json: &str) -> UltraResult<i64> {
-    let event: Event = serde_json::from_str(json)
-        .map_err(|e| crate::UltraError::EventParse(e.to_string()))?;
+    let event: Event =
+        serde_json::from_str(json).map_err(|e| crate::UltraError::EventParse(e.to_string()))?;
     ingest_event(conn, &event)
 }
 
@@ -509,11 +533,11 @@ pub fn ingest_events(conn: &Connection, events: &[Event]) -> UltraResult<usize> 
         #[cfg(not(feature = "zstd-compress"))]
         let (content_text, content_zst) = (ev.content.clone(), None::<Vec<u8>>);
 
-        if let Some(sid) = &ev.session_id {
-            if let Err(e) = session_stmt.execute(params![sid, ev.agent, ev.ts]) {
-                conn.execute_batch("ROLLBACK")?;
-                return Err(e.into());
-            }
+        if let Some(sid) = &ev.session_id
+            && let Err(e) = session_stmt.execute(params![sid, ev.agent, ev.ts])
+        {
+            conn.execute_batch("ROLLBACK")?;
+            return Err(e.into());
         }
 
         if let Err(e) = insert_stmt.execute(params![
@@ -541,7 +565,11 @@ pub fn ingest_events(conn: &Connection, events: &[Event]) -> UltraResult<usize> 
 ///
 /// Query syntax: FTS5 standard — `unquoted terms`, `"exact phrase"`, `OR`,
 /// `*` prefix, `column:term`. `LIMIT` defaults to 50, max 1000.
-pub fn search_events(conn: &Connection, query: &str, limit: Option<i64>) -> UltraResult<Vec<EventRow>> {
+pub fn search_events(
+    conn: &Connection,
+    query: &str,
+    limit: Option<i64>,
+) -> UltraResult<Vec<EventRow>> {
     let n = limit.unwrap_or(50).clamp(1, 1000);
     let sql = "SELECT e.id, e.ts, e.session_id, e.agent, e.kind, e.uri, e.content, e.meta
         FROM synapse_events_fts f
