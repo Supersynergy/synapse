@@ -4,7 +4,7 @@ Your agents forget. Your work — and the care behind it — shouldn't.
 
 This release gives the product one clear public identity:
 `Synapse Agent Memory` at
-`https://github.com/Supersynergy/synapse-agent-memory`.
+`https://github.com/Supersynergy/synapse-memory`.
 
 It keeps the long-term truth loop from the previous candidate and makes the
 purpose easier to understand: remember what mattered, preserve why it mattered,

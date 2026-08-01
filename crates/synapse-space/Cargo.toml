@@ -11,10 +11,10 @@ description = "Space concept layer on top of Synapse: Space → Wing → Room �
 name = "synapse_space"
 
 [dependencies]
-synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core" }
+synapse-core = { path = "../synapse-core" }
 synapse-rerank = { path = "../synapse-rerank", optional = true }
-synapse-engine = { path = "../../vendor/synapse-db/crates/synapse-engine" }
-synapse-ann = { path = "../../vendor/synapse-db/crates/synapse-ann" }
+synapse-engine = { path = "../synapse-engine" }
+synapse-ann = { path = "../synapse-ann" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

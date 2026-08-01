@@ -2,8 +2,7 @@
 """Layering guard (ADR 0001).
 
 Product (workspace member) crates must NOT depend on excluded *experimental*
-crates under `crates/`. Substrate under `vendor/` is allowed — that is the L0
-layer everything legitimately builds on.
+crates under `crates/`. The public L0 substrate is also under `crates/`.
 
 Run from anywhere: `python3 scripts/check-layering.py`. Exit 1 on violation.
 """
@@ -24,7 +23,6 @@ def main() -> int:
     cargo = tomllib.loads((ROOT / "Cargo.toml").read_text())
     excluded = cargo["workspace"].get("exclude", [])
     # Forbidden = excluded crates living under crates/ (experimental/opt-in).
-    # vendor/* substrate is intentionally allowed and not flagged.
     forbidden = {pathlib.PurePath(e).name for e in excluded if e.startswith("crates/")}
 
     meta = json.loads(

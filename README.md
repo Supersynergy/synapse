@@ -1,7 +1,7 @@
 # Synapse Memory
 
-[![CI](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/ci.yml)
-[![Release](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/release-matrix.yml/badge.svg)](https://github.com/Supersynergy/synapse-agent-memory/actions/workflows/release-matrix.yml)
+[![CI](https://github.com/Supersynergy/synapse-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Supersynergy/synapse-memory/actions/workflows/ci.yml)
+[![Release](https://github.com/Supersynergy/synapse-memory/actions/workflows/release-matrix.yml/badge.svg)](https://github.com/Supersynergy/synapse-memory/actions/workflows/release-matrix.yml)
 [![Crates.io](https://img.shields.io/crates/v/synapse-core.svg)](https://crates.io/crates/synapse-core)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-CORE.md)
 [![LoCoMo](https://img.shields.io/badge/eval-LoCoMo%20%2B%20LongMemEval-blueviolet)](eval/)
@@ -47,7 +47,7 @@ notes or 294,000.
 ### Option 1 — Prebuilt binary (recommended)
 
 Download the latest release for your platform from
-[GitHub Releases](https://github.com/Supersynergy/synapse-agent-memory/releases):
+[GitHub Releases](https://github.com/Supersynergy/synapse-memory/releases):
 
 ```bash
 # Linux/macOS
@@ -70,7 +70,7 @@ cargo install --locked --path crates/synapse-ultra
 ### Option 3 — Build from source
 
 ```bash
-git clone https://github.com/Supersynergy/synapse-agent-memory.git
+git clone https://github.com/Supersynergy/synapse-memory.git
 cd synapse-agent-memory
 cargo build --release -p synapse-cli -p synapse-ultra
 # Binaries at target/release/synx and target/release/synapse-ultra
@@ -95,6 +95,28 @@ synx -f ~/.synapse/brain.db context "current repo task" --mode coding
 synx -f ~/.synapse/brain.db fresh-context --cwd . --prompt "latest package API changes"
 synx -f ~/.synapse/brain.db doctor --fix
 ```
+
+---
+
+## SSD-friendly high-frequency ingest
+
+Applications can submit newline-delimited JSON documents with one process and
+one SQLite transaction:
+
+```bash
+printf '%s\n' \
+  '{"title":"hook:one","text":"alpha","meta":{"kind":"session"}}' \
+  '{"title":"hook:two","text":"beta","meta":{"kind":"session"}}' |
+  synx -f ~/.synapse/brain.db put-batch
+```
+
+For frequent hooks, the optional
+[`integrations/writeback`](integrations/writeback/README.md) service keeps a
+bounded 120-second/64-item/4-MiB window in RAM, deduplicates events, and flushes
+with `put-batch`. Failure or overflow uses an owner-only, locked spill file.
+Critical writes continue to use direct `put`/`remember`.
+
+Design contract: [ADR 0009](docs/adr/0009-bounded-writeback.md).
 
 ---
 

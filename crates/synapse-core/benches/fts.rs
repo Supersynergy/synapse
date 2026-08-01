@@ -1,15 +1,18 @@
 //! Criterion benchmark — Tantivy BM25 query latency.
 //!
 //! Run with:
-//!   cargo bench -p synapse-core --features fts-tantivy --bench fts
+//!   cargo bench -p synapse-core --features tantivy-fts --bench fts
 //!
 //! Hardware + rustc version are captured by `criterion` into
 //! `target/criterion/**/report.json`. Publish under `docs/BENCH-<date>.md`.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
-#[cfg(feature = "fts-tantivy")]
+type FtsRow = (String, String, String, String);
+
+#[cfg(feature = "tantivy-fts")]
 fn bench_bm25(c: &mut Criterion) {
+    use std::hint::black_box;
     use synapse_core::synx::fts::FtsIndex;
 
     const WORDS: &str = "rust ships ferris ownership borrow mcp memory vector embed synx \
@@ -25,7 +28,7 @@ contradicts summarises agent claude crm event lead scraping research brainpack s
     };
 
     let fts = FtsIndex::new().unwrap();
-    let rows: Vec<(String, String, String, String)> = (0..10_000)
+    let rows: Vec<FtsRow> = (0..10_000)
         .map(|i| {
             (
                 format!("d{i}"),
@@ -58,9 +61,9 @@ contradicts summarises agent claude crm event lead scraping research brainpack s
     });
 }
 
-#[cfg(not(feature = "fts-tantivy"))]
+#[cfg(not(feature = "tantivy-fts"))]
 fn bench_bm25(_c: &mut Criterion) {
-    eprintln!("skip: enable --features fts-tantivy");
+    eprintln!("skip: enable --features tantivy-fts");
 }
 
 criterion_group!(benches, bench_bm25);

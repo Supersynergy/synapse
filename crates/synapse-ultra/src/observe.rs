@@ -4,8 +4,10 @@
 //! (eventually) by the Astro 7 dashboard.
 
 use crate::UltraResult;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use serde::Serialize;
+
+pub type NamedCount = (String, i64);
 
 /// High-level brain statistics (for `synapse-ultra inspect`).
 #[derive(Debug, Clone, Serialize)]
@@ -40,9 +42,8 @@ pub fn brain_stats(conn: &Connection) -> UltraResult<BrainStats> {
     } else {
         0
     };
-    let (events, decisions, graph_nodes, graph_edges, sessions, token_cost_rows) = conn
-        .query_row(
-            r#"
+    let (events, decisions, graph_nodes, graph_edges, sessions, token_cost_rows) = conn.query_row(
+        r#"
             SELECT
               (SELECT COUNT(*) FROM synapse_events),
               (SELECT COUNT(*) FROM decisions),
@@ -51,18 +52,18 @@ pub fn brain_stats(conn: &Connection) -> UltraResult<BrainStats> {
               (SELECT COUNT(*) FROM sessions),
               (SELECT COUNT(*) FROM token_cost)
             "#,
-            [],
-            |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, i64>(1)?,
-                    row.get::<_, i64>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, i64>(4)?,
-                    row.get::<_, i64>(5)?,
-                ))
-            },
-        )?;
+        [],
+        |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+            ))
+        },
+    )?;
     let (total_cost_usd, total_input_tokens, total_output_tokens) = conn
         .query_row(
             "SELECT COALESCE(SUM(cost_usd), 0.0), COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0) FROM token_cost",
@@ -76,9 +77,7 @@ pub fn brain_stats(conn: &Connection) -> UltraResult<BrainStats> {
             },
         )?;
     let db_size_bytes = conn
-        .query_row("PRAGMA page_count", [], |row| {
-            row.get::<_, i64>(0)
-        })
+        .query_row("PRAGMA page_count", [], |row| row.get::<_, i64>(0))
         .ok()
         .and_then(|pages| {
             conn.query_row("PRAGMA page_size", [], |row| row.get::<_, i64>(0))
@@ -183,7 +182,7 @@ pub fn cost_by_day(conn: &Connection, since_ts: i64) -> UltraResult<Vec<CostRow>
 }
 
 /// Top agents by event count (for `synapse-ultra inspect`).
-pub fn top_agents(conn: &Connection, limit: i64) -> UltraResult<Vec<(String, i64)>> {
+pub fn top_agents(conn: &Connection, limit: i64) -> UltraResult<Vec<NamedCount>> {
     let mut stmt = conn.prepare(
         "SELECT agent, COUNT(*) AS c FROM synapse_events GROUP BY agent ORDER BY c DESC LIMIT ?1",
     )?;
@@ -196,7 +195,7 @@ pub fn top_agents(conn: &Connection, limit: i64) -> UltraResult<Vec<(String, i64
 }
 
 /// Top event kinds by count.
-pub fn top_kinds(conn: &Connection, limit: i64) -> UltraResult<Vec<(String, i64)>> {
+pub fn top_kinds(conn: &Connection, limit: i64) -> UltraResult<Vec<NamedCount>> {
     let mut stmt = conn.prepare(
         "SELECT kind, COUNT(*) AS c FROM synapse_events GROUP BY kind ORDER BY c DESC LIMIT ?1",
     )?;
@@ -263,8 +262,8 @@ pub struct AgentSummary {
     pub output_tokens: i64,
     pub first_ts: i64,
     pub last_ts: i64,
-    pub top_kinds: Vec<(String, i64)>,
-    pub top_uris: Vec<(String, i64)>,
+    pub top_kinds: Vec<NamedCount>,
+    pub top_uris: Vec<NamedCount>,
 }
 
 /// Aggregated daily summary: what happened on a given day?
@@ -327,15 +326,14 @@ pub fn daily_summary(
                 ))
             },
         )?;
-    let (total_cost_usd, total_input_tokens, total_output_tokens) = conn
-        .query_row(
-            "SELECT COALESCE(SUM(cost_usd), 0.0),
+    let (total_cost_usd, total_input_tokens, total_output_tokens) = conn.query_row(
+        "SELECT COALESCE(SUM(cost_usd), 0.0),
                     COALESCE(SUM(input_tokens), 0),
                     COALESCE(SUM(output_tokens), 0)
              FROM token_cost WHERE ts >= ?1 AND ts <= ?2",
-            params![day_start_ts, day_end_ts],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
+        params![day_start_ts, day_end_ts],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
 
     // Per-agent breakdown
     let mut stmt = conn.prepare(
@@ -374,7 +372,17 @@ pub fn daily_summary(
     })?;
     let mut agents = Vec::new();
     for r in agent_rows {
-        let (agent, events, decisions, sessions, cost_usd, input_tokens, output_tokens, first_ts, last_ts) = r?;
+        let (
+            agent,
+            events,
+            decisions,
+            sessions,
+            cost_usd,
+            input_tokens,
+            output_tokens,
+            first_ts,
+            last_ts,
+        ) = r?;
         // Top kinds for this agent
         let mut kstmt = conn.prepare(
             "SELECT kind, COUNT(*) AS c FROM synapse_events

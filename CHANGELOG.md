@@ -10,12 +10,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- `synx put-batch`: bounded JSONL ingest in one SQLite transaction.
+- Optional `integrations/writeback` RAM buffer for delay-tolerant, high-frequency
+  hooks, with idempotency, retry backoff, owner-only failure spill, and recovery
+  tests (ADR 0009).
 - Layering guard `scripts/check-layering.py`, wired into `just check` and CI:
   fails if a product crate depends on an excluded experimental crate (ADR 0001).
   Also exposed as `just check-layers`.
 - Root `ARCHITECTURE.md` with the L0 substrate / L1 domain / L2 interface overview.
 
 ### Changed
+- Public substrate crates now build from this checkout; no machine-local
+  submodule is required.
+- Canonical repository URLs now target
+  `https://github.com/Supersynergy/synapse-memory`.
+- The public `synapsed` `licensed` feature is now an explicit free-tier stub;
+  the proprietary license backend is not shipped or referenced by local path.
 - Default workspace build is now the Context-OS product surface only:
   `synapsed`, `synapse-cli`, `synapse-mcp`, `synapse-rerank`, `synapse-learn`,
   `synapse-extract`, `synapse-space`, `synapse-temporal` (8 crates, down from
@@ -32,15 +42,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   Tool-surface threshold corrected 20 -> 16 to match the real served surface.
 
 ### Fixed
+- Public CI checkout no longer tries to clone `/Users/master/projects/synapse-db`.
+- Third-party GitHub Actions are pinned to verified commit SHAs.
+  - macOS CI uses current `macos-15` / `macos-15-intel` runners and declares
+    Apple Silicon's guaranteed NEON/AES/SHA-2 baseline explicitly, working
+    around `ring 0.17.14` feature detection on GitHub-hosted ARM runners.
+  - CI runs the full native stack on Linux and Apple Silicon, while Intel macOS
+    and Windows verify the portable CLI without unsupported ORT/usearch native
+    dependencies. Platform-only examples now keep a portable fallback entrypoint.
+- Root license and RustSec policy now covers the in-repo public substrate;
+  no-fix transitive advisories carry dated removal triggers.
+- Rust 1.95 lint drift across tests, examples, and benchmarks no longer blocks
+  the public `fmt · clippy · layering` gate.
+- Portable `--no-default-features` builds store text without silently requiring
+  an embedding runtime.
 - Lexical search (`synapse find`) returned the same document twice when the
-  vendored tantivy FTS index held a doc across multiple segments; the read path
-  now dedups hits by id (bumps `vendor/synapse-db`).
+  Tantivy FTS index held a doc across multiple segments; the read path now
+  dedups hits by id (updates the public `synapse-core` substrate).
 - Clippy warnings: `manual_range_contains` in `synapse-extract`, `type_complexity`
   in `synapse-cli` IO round-trip tests.
 
 ---
 
-## [2.1.0] — 2026-08-24
+## [2.1.0] — 2026-07-23
 
 ### Added — Production Tools
 - **`synapse-ultra health`** — 11-point health audit (integrity, WAL, synchronous,
@@ -76,7 +100,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 - Workspace version bumped 2.0.0 → 2.1.0.
-- Repository URL corrected to `https://github.com/Supersynergy/synapse-agent-memory`.
+  - Repository URL corrected to `https://github.com/Supersynergy/synapse-memory`.
 - `synapse-ultra doctor` now uses the full 11-point `health_check` report
   (previously only printed basic stats).
 - README rewritten for online presentation: badges, install instructions,

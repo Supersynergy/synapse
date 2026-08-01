@@ -15,7 +15,7 @@ colbert-jina = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "
 muvera = []
 
 [dependencies]
-synapse-kernel = { path = "../../vendor/synapse-db/crates/synapse-kernel" }
+synapse-kernel = { path = "../synapse-kernel" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

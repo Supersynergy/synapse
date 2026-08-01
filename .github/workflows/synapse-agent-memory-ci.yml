@@ -11,8 +11,10 @@ on:
       - "crates/synapse-graph/**"
       - "crates/synapse-learn/**"
       - "integrations/codex/**"
+      - "integrations/writeback/**"
       - "release/synapse-agent-memory/**"
       - "release/synapse-memory/**"
+      - ".github/workflows/ci.yml"
       - ".github/workflows/synapse-agent-memory-ci.yml"
       - ".github/workflows/release-synapse-agent-memory.yml"
   pull_request:
@@ -24,8 +26,10 @@ on:
       - "crates/synapse-graph/**"
       - "crates/synapse-learn/**"
       - "integrations/codex/**"
+      - "integrations/writeback/**"
       - "release/synapse-agent-memory/**"
       - "release/synapse-memory/**"
+      - ".github/workflows/ci.yml"
       - ".github/workflows/synapse-agent-memory-ci.yml"
       - ".github/workflows/release-synapse-agent-memory.yml"
   workflow_dispatch:
@@ -67,6 +71,8 @@ jobs:
           cargo test --locked -p synapse-core --no-default-features \
             --features backend-rusqlite --lib timeline_between_prefers
           cargo clippy --locked -p synapse-cli --no-default-features -- -D warnings
+      - name: Bounded write-back integration
+        run: python3 integrations/writeback/test_writeback.py -v
       - name: Build hardened host artifact
         run: |
           cargo build --locked --profile release-hardened \

@@ -8,19 +8,61 @@ mod synx_io;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
+#[cfg(any(feature = "static-ort", feature = "cross-linux"))]
+use synapse_core::embed::Embedder;
+#[cfg(feature = "sharding")]
+use synapse_core::shard;
 use synapse_core::{
     PutRequest, SearchMode, Store,
-    embed::Embedder,
     federate::{Addr, Federation},
     fresh::{FreshMode, FreshOptions, build_fresh_report, render_fresh_context_xml},
-    shard, sign, snap,
+    sign, snap,
 };
 use synapse_learn::LearnStore;
 
 type VerifyRow = (i64, String, Vec<u8>);
 type FreshInput = (String, Option<PathBuf>, Option<String>);
 type SearchBestEffortResult = (Vec<synapse_core::Hit>, String);
+
+#[cfg(any(feature = "static-ort", feature = "cross-linux"))]
+fn semantic_embedding(file: &std::path::Path, text: &str) -> Result<Vec<f32>> {
+    let embedder = Embedder::new_with_cache::<std::path::PathBuf>(
+        file.parent().map(|parent| parent.join(".emb-cache")),
+    )
+    .context("embedder init")?;
+    embedder.embed_one(text).map_err(Into::into)
+}
+
+#[cfg(not(any(feature = "static-ort", feature = "cross-linux")))]
+fn semantic_embedding(_file: &std::path::Path, _text: &str) -> Result<Vec<f32>> {
+    Err(anyhow::anyhow!(
+        "semantic embeddings are not included in this portable build"
+    ))
+}
+
+fn optional_semantic_embedding(
+    file: &std::path::Path,
+    text: &str,
+    disabled: bool,
+) -> Result<Option<Vec<f32>>> {
+    if disabled {
+        return Ok(None);
+    }
+    #[cfg(any(feature = "static-ort", feature = "cross-linux"))]
+    {
+        semantic_embedding(file, text).map(Some)
+    }
+    #[cfg(not(any(feature = "static-ort", feature = "cross-linux")))]
+    {
+        let _ = (file, text);
+        eprintln!(
+            "warning: portable build stores this memory without an embedding; lexical retrieval remains available"
+        );
+        Ok(None)
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "synapse", version, about = "Single-file memory for AI agents")]
@@ -63,6 +105,15 @@ enum Cmd {
         /// Path to Ed25519 signing key (32-byte raw file)
         #[arg(long)]
         sign: Option<PathBuf>,
+    },
+    /// Append newline-delimited JSON documents in one SQLite transaction
+    PutBatch {
+        /// Maximum number of non-empty JSONL records accepted
+        #[arg(long, default_value_t = 1024)]
+        max_items: usize,
+        /// Maximum total stdin bytes accepted
+        #[arg(long, default_value_t = 16_777_216)]
+        max_bytes: usize,
     },
     /// Verify Ed25519 signature of a doc by id
     Verify {
@@ -238,6 +289,7 @@ enum Cmd {
         action: FederateCmd,
     },
     /// IVF shard operations
+    #[cfg(feature = "sharding")]
     Shard {
         #[command(subcommand)]
         action: ShardCmd,
@@ -447,6 +499,7 @@ enum FederateCmd {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "sharding")]
 enum ShardCmd {
     /// Split a brain.db into N shards (k-means on embeddings)
     Split {
@@ -500,15 +553,7 @@ fn main() -> Result<()> {
             };
             anyhow::ensure!(!body.is_empty(), "empty text");
             let mut store = Store::open(&cli.file)?;
-            let embedding = if no_embed {
-                None
-            } else {
-                let e = Embedder::new_with_cache::<std::path::PathBuf>(
-                    cli.file.parent().map(|p| p.join(".emb-cache")),
-                )
-                .context("embedder init")?;
-                Some(e.embed_one(&body)?)
-            };
+            let embedding = optional_semantic_embedding(&cli.file, &body, no_embed)?;
             let meta = build_put_meta(source, updated, kind, status, meta)?;
             let req = PutRequest {
                 title,
@@ -524,6 +569,26 @@ fn main() -> Result<()> {
                 store.put(&req)?
             };
             println!("{}", id);
+        }
+        Cmd::PutBatch {
+            max_items,
+            max_bytes,
+        } => {
+            anyhow::ensure!(max_items > 0, "--max-items must be greater than zero");
+            anyhow::ensure!(max_bytes > 0, "--max-bytes must be greater than zero");
+            let stdin = std::io::stdin();
+            let limited = stdin.lock().take((max_bytes as u64).saturating_add(1));
+            let requests = read_put_batch(BufReader::new(limited), max_items, max_bytes)?;
+            let mut store = Store::open(&cli.file)?;
+            let ids = store.put_batch(&requests)?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "count": ids.len(),
+                    "ids": ids,
+                    "transaction": "single"
+                })
+            );
         }
         Cmd::Verify { id, vk } => {
             let store = Store::open(&cli.file)?;
@@ -547,10 +612,7 @@ fn main() -> Result<()> {
         }
         Cmd::Vec { query, limit } => {
             let store = Store::open(&cli.file)?;
-            let e = Embedder::new_with_cache::<std::path::PathBuf>(
-                cli.file.parent().map(|p| p.join(".emb-cache")),
-            )?;
-            let q = e.embed_one(&query)?;
+            let q = semantic_embedding(&cli.file, &query)?;
             let hits = store.search("", SearchMode::Vec, Some(&q), limit)?;
             print_hits(&hits);
         }
@@ -560,10 +622,7 @@ fn main() -> Result<()> {
             guarantee,
         } => {
             let store = Store::open(&cli.file)?;
-            let e = Embedder::new_with_cache::<std::path::PathBuf>(
-                cli.file.parent().map(|p| p.join(".emb-cache")),
-            )?;
-            let q = e.embed_one(&query)?;
+            let q = semantic_embedding(&cli.file, &query)?;
             let hits = if guarantee {
                 // Two-stage: hybrid RRF for candidate expansion, then exact brute-force vec
                 let candidates = store.search(&query, SearchMode::Hybrid, Some(&q), limit * 10)?;
@@ -610,15 +669,7 @@ fn main() -> Result<()> {
             anyhow::ensure!(!text.trim().is_empty(), "empty text");
             let mut store = Store::open(&cli.file)?;
             let normalized_kind = normalize_kind(&kind);
-            let embedding = if no_embed {
-                None
-            } else {
-                let e = Embedder::new_with_cache::<std::path::PathBuf>(
-                    cli.file.parent().map(|p| p.join(".emb-cache")),
-                )
-                .context("embedder init")?;
-                Some(e.embed_one(&text)?)
-            };
+            let embedding = optional_semantic_embedding(&cli.file, &text, no_embed)?;
             let req = PutRequest {
                 title: title.or_else(|| Some(auto_title(&normalized_kind, &text))),
                 uri,
@@ -758,6 +809,7 @@ fn main() -> Result<()> {
                 .context("update sig")?;
             println!("ok signed id={}", id);
         }
+        #[cfg(feature = "sharding")]
         Cmd::Shard { action } => match action {
             ShardCmd::Split {
                 brain,
@@ -779,8 +831,7 @@ fn main() -> Result<()> {
                 limit,
             } => {
                 let manager = shard::ShardManager::open(manifest)?;
-                let e = Embedder::new_with_cache::<std::path::PathBuf>(None)?;
-                let q_vec = e.embed_one(&query)?;
+                let q_vec = semantic_embedding(&cli.file, &query)?;
                 let q_arr: [f32; synapse_core::types::EMBED_DIM] = q_vec
                     .try_into()
                     .map_err(|_| anyhow::anyhow!("embedding dim mismatch"))?;
@@ -1071,10 +1122,7 @@ fn main() -> Result<()> {
         } => {
             // Pipeline: hybrid → seeds → PPR → traverse → JSON bundle
             let store = Store::open(&cli.file)?;
-            let e = Embedder::new_with_cache::<std::path::PathBuf>(
-                cli.file.parent().map(|p| p.join(".emb-cache")),
-            )?;
-            let q = e.embed_one(&query)?;
+            let q = semantic_embedding(&cli.file, &query)?;
             let hits = store.search(&query, SearchMode::Hybrid, Some(&q), k)?;
 
             let mut seeds: std::collections::HashMap<i64, f64> = std::collections::HashMap::new();
@@ -1150,6 +1198,53 @@ fn parse_fresh_input(raw: &str) -> FreshInput {
     }
 
     (trimmed.to_string(), None, None)
+}
+
+fn read_put_batch<R: BufRead>(
+    mut input: R,
+    max_items: usize,
+    max_bytes: usize,
+) -> Result<Vec<PutRequest>> {
+    anyhow::ensure!(max_items > 0, "max_items must be greater than zero");
+    anyhow::ensure!(max_bytes > 0, "max_bytes must be greater than zero");
+
+    let mut requests = Vec::new();
+    let mut line = String::new();
+    let mut total_bytes = 0usize;
+    let mut line_number = 0usize;
+    loop {
+        line.clear();
+        let bytes = input.read_line(&mut line)?;
+        if bytes == 0 {
+            break;
+        }
+        line_number += 1;
+        total_bytes = total_bytes
+            .checked_add(bytes)
+            .context("batch byte count overflow")?;
+        anyhow::ensure!(
+            total_bytes <= max_bytes,
+            "batch exceeds --max-bytes ({total_bytes} > {max_bytes})"
+        );
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        anyhow::ensure!(
+            requests.len() < max_items,
+            "batch exceeds --max-items ({max_items})"
+        );
+        let request: PutRequest = serde_json::from_str(trimmed)
+            .with_context(|| format!("invalid JSONL at line {line_number}"))?;
+        anyhow::ensure!(
+            !request.text.trim().is_empty(),
+            "empty text at JSONL line {line_number}"
+        );
+        requests.push(request);
+    }
+    anyhow::ensure!(!requests.is_empty(), "empty batch");
+    Ok(requests)
 }
 
 fn print_hits(hits: &[synapse_core::Hit]) {
@@ -1489,16 +1584,14 @@ fn search_best_effort(
         return Ok((lex, "lexical".to_string()));
     }
 
-    let hybrid =
-        Embedder::new_with_cache::<std::path::PathBuf>(file.parent().map(|p| p.join(".emb-cache")))
-            .ok()
-            .and_then(|e| e.embed_one(query).ok())
-            .and_then(|q| {
-                store
-                    .search(query, SearchMode::Hybrid, Some(&q), limit)
-                    .ok()
-            })
-            .unwrap_or_default();
+    let hybrid = semantic_embedding(file, query)
+        .ok()
+        .and_then(|q| {
+            store
+                .search(query, SearchMode::Hybrid, Some(&q), limit)
+                .ok()
+        })
+        .unwrap_or_default();
     if !hybrid.is_empty() {
         return Ok((hybrid, "hybrid".to_string()));
     }
@@ -1939,6 +2032,7 @@ fn now_secs() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn fresh_input_accepts_hook_json() {
@@ -1948,6 +2042,39 @@ mod tests {
         assert_eq!(prompt, "latest serde API");
         assert_eq!(cwd, Some(PathBuf::from("/tmp/demo")));
         assert_eq!(project.as_deref(), Some("demo"));
+    }
+
+    #[test]
+    fn put_batch_jsonl_is_bounded_and_preserves_metadata() {
+        let input = concat!(
+            "{\"title\":\"one\",\"text\":\"alpha\",\"meta\":{\"kind\":\"fact\"}}\n",
+            "\n",
+            "{\"uri\":\"file:///two\",\"text\":\"beta\"}\n"
+        );
+        let requests = read_put_batch(Cursor::new(input), 2, input.len()).unwrap();
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].title.as_deref(), Some("one"));
+        assert_eq!(
+            requests[0]
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.get("kind"))
+                .and_then(|kind| kind.as_str()),
+            Some("fact")
+        );
+        assert_eq!(requests[1].uri.as_deref(), Some("file:///two"));
+        assert!(requests.iter().all(|request| request.embedding.is_none()));
+    }
+
+    #[test]
+    fn put_batch_jsonl_rejects_item_and_byte_overflow() {
+        let input = "{\"text\":\"alpha\"}\n{\"text\":\"beta\"}\n";
+        let item_error = read_put_batch(Cursor::new(input), 1, input.len()).unwrap_err();
+        assert!(item_error.to_string().contains("max-items"));
+
+        let byte_error =
+            read_put_batch(Cursor::new(input), 2, input.len().saturating_sub(1)).unwrap_err();
+        assert!(byte_error.to_string().contains("max-bytes"));
     }
 
     #[test]

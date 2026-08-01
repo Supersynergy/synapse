@@ -3,7 +3,8 @@
 //! Run:
 //!   cargo bench -p synapse-core --bench dist_score --features turbo
 
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
+use std::hint::black_box;
 
 fn dist_score_scalar(dists: &[f32]) -> Vec<f32> {
     dists.iter().map(|d| 1.0_f32 / (1.0_f32 + d)).collect()

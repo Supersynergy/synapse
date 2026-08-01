@@ -17,6 +17,7 @@
 //!   --bench kernels_progression
 //! ```
 
+#[cfg(test)]
 use std::time::Instant;
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
@@ -178,6 +179,11 @@ fn bench_progression(c: &mut Criterion) {
 
 // --- bench runner with markdown output for chart --------------------------
 
+#[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "manual markdown exporter is kept beside the benchmark"
+)]
 fn run_and_dump_markdown() {
     let db_f32 = make_corpus_f32(N, DIM);
     let q_f32: Vec<f32> = db_f32[..DIM].to_vec();
@@ -263,9 +269,8 @@ criterion_main!(benches);
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     #[test]
     fn smoke() {
-        run_and_dump_markdown();
+        super::run_and_dump_markdown();
     }
 }

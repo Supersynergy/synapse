@@ -14,7 +14,7 @@ workflow is six commands — `prime`, `context`, `remember`, `feedback`,
 not the default first-run product promise."*
 
 The `split-memory` carve already cut the off-product crates (market/olap/tsdb/
-raft/server) and vendored the heavy storage substrate into `vendor/synapse-db`.
+raft/server) and separated the storage substrate from the product surface.
 What remained was still a flat `members = ["crates/*"]` glob that pulled
 advanced-retrieval, multimodal, and binding crates into every default build.
 
@@ -24,7 +24,7 @@ advanced-retrieval, multimodal, and binding crates into every default build.
 
    | Layer | Crates | Role |
    |---|---|---|
-   | L0 substrate | `vendor/synapse-db` (core, kernel, engine, ann, fts, graph) | SQLite + vec + FTS + SIMD kernels |
+   | L0 substrate | `crates/synapse-{core,kernel,engine,ann,fts,graph}` | SQLite + vec + FTS + SIMD kernels |
    | L1 domain | `synapse-extract`, `synapse-rerank`, `synapse-learn`, `synapse-space`, `synapse-temporal` | chunking, rerank, bandit feedback, namespaces, temporal parsing |
    | L2 interfaces | `synapsed` (socket daemon), `synapse-cli` (`synx`), `synapse-mcp` (MCP bridge) | the product surface |
 
@@ -33,7 +33,6 @@ advanced-retrieval, multimodal, and binding crates into every default build.
 
 2. **The default workspace is the product surface only.** Everything else is
    excluded from `members` and built on demand:
-   - substrate: `vendor/synapse-db`
    - bindings: `synapse-py`, `synapse-js`
    - platform/GPU: `synapse-metal`, `synapse-embed-gpu`
    - advanced retrieval (research): `synapse-colbert`, `synapse-splade`, `synapse-fusion`

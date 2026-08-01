@@ -9,8 +9,8 @@ One SQLite-backed brain. No Docker, no cloud.
 ## Layers
 
 Dependency direction points inward only. The default `cargo check --workspace`
-builds the L1 + L2 product crates; L0 substrate is pulled in via path-deps from
-the vendored foundation. Enforced by `scripts/check-layering.py` (see ADR 0001).
+builds the L0 + L1 + L2 product crates from this checkout. Enforced by
+`scripts/check-layering.py` (see ADR 0001).
 
 ```
 L2  interfaces   synapsed · synapse-cli · synapse-mcp        the product surface
@@ -21,8 +21,8 @@ L1  domain       synapse-extract · synapse-rerank            chunking · rerank
                  synapse-temporal                            namespaces · temporal
         │
         ▼
-L0  substrate    vendor/synapse-db                           SQLite + sqlite-vec +
-                 (core · kernel · engine · ann · fts · graph) FTS5 + SIMD kernels
+L0  substrate    crates/synapse-{core,kernel,engine,ann,     SQLite + sqlite-vec +
+                 fts,graph}                                  FTS5 + SIMD kernels
 ```
 
 `synapse-mcp` holds **no** intra-workspace path deps — it speaks to `synapsed`
@@ -41,7 +41,6 @@ first-run promise.
 
 Excluded from the default workspace, built on demand (see ADR 0001):
 
-- **substrate**: `vendor/synapse-db` (built transitively by L1/L2 path-deps)
 - **bindings**: `synapse-py`, `synapse-js`
 - **platform/GPU**: `synapse-metal`, `synapse-embed-gpu`
 - **advanced retrieval (research)**: `synapse-colbert`, `synapse-splade`, `synapse-fusion`
@@ -50,7 +49,7 @@ Excluded from the default workspace, built on demand (see ADR 0001):
 ## Build & verify
 
 ```bash
-just setup    # git submodule init (vendor/synapse-db) + rustup show
+just setup    # verify the pinned Rust toolchain
 just check    # layering guard + fmt + clippy + cargo check (fast gate)
 just test     # cargo nextest
 just ci       # check + test + cargo deny

@@ -1,6 +1,14 @@
-use criterion::*;
+use criterion::{Criterion, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
+use std::hint::black_box;
 use synapse_ann::{AnnIndex, UsearchIndex};
+
+struct HnswConfig<'a> {
+    name: &'a str,
+    m: usize,
+    ef_c: usize,
+    ef_s: usize,
+}
 
 fn norm(v: &mut [f32]) {
     let n: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -39,10 +47,7 @@ fn ground_truth(corpus: &[Vec<f32>], queries: &[Vec<f32>], k: usize) -> Vec<Vec<
 
 fn bench_config(
     c: &mut Criterion,
-    name: &str,
-    m: usize,
-    ef_c: usize,
-    ef_s: usize,
+    config: &HnswConfig<'_>,
     corpus: &[Vec<f32>],
     queries: &[Vec<f32>],
     gt: &[Vec<usize>],
@@ -52,7 +57,7 @@ fn bench_config(
     let dim = corpus[0].len();
     let n = corpus.len();
 
-    let mut idx = UsearchIndex::new_tuned(dim, n, m, ef_c, ef_s).unwrap();
+    let mut idx = UsearchIndex::new_tuned(dim, n, config.m, config.ef_c, config.ef_s).unwrap();
     for (i, v) in corpus.iter().enumerate() {
         idx.insert(i as u64, v).unwrap();
     }
@@ -65,12 +70,19 @@ fn bench_config(
         recall_total += hit_ids.intersection(&gt_set).count();
     }
     let recall = recall_total as f32 / (q_count * K) as f32;
-    println!("=== {name} M={m} ef_c={ef_c} ef_s={ef_s} -> recall@10={recall:.4} ===",);
+    println!(
+        "=== {} M={} ef_c={} ef_s={} -> recall@10={recall:.4} ===",
+        config.name, config.m, config.ef_c, config.ef_s
+    );
 
     let q0 = &queries[0];
-    c.bench_function(&format!("hnsw_{name}_M{m}_ec{ef_c}_es{ef_s}"), |b| {
-        b.iter(|| black_box(idx.search(q0, K).unwrap()))
-    });
+    c.bench_function(
+        &format!(
+            "hnsw_{}_M{}_ec{}_es{}",
+            config.name, config.m, config.ef_c, config.ef_s
+        ),
+        |b| b.iter(|| black_box(idx.search(q0, K).unwrap())),
+    );
 }
 
 fn benches(c: &mut Criterion) {
@@ -83,10 +95,34 @@ fn benches(c: &mut Criterion) {
     let queries = synth(Q, D, 999);
     let gt = ground_truth(&corpus, &queries, K);
 
-    bench_config(c, "A", 32, 200, 64, &corpus, &queries, &gt);
-    bench_config(c, "B", 48, 400, 128, &corpus, &queries, &gt);
-    bench_config(c, "C", 64, 200, 64, &corpus, &queries, &gt);
-    bench_config(c, "default", 16, 256, 256, &corpus, &queries, &gt);
+    for config in [
+        HnswConfig {
+            name: "A",
+            m: 32,
+            ef_c: 200,
+            ef_s: 64,
+        },
+        HnswConfig {
+            name: "B",
+            m: 48,
+            ef_c: 400,
+            ef_s: 128,
+        },
+        HnswConfig {
+            name: "C",
+            m: 64,
+            ef_c: 200,
+            ef_s: 64,
+        },
+        HnswConfig {
+            name: "default",
+            m: 16,
+            ef_c: 256,
+            ef_s: 256,
+        },
+    ] {
+        bench_config(c, &config, &corpus, &queries, &gt);
+    }
 }
 
 criterion_group!(g, benches);

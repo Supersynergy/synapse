@@ -10,23 +10,23 @@
 //! Reports p50/p95/mean for single-doc and batched (1/4/8/16/32/64) paths,
 //! plus a 100-doc total to compare end-to-end ingest speed.
 
-#![cfg(all(target_os = "macos", target_arch = "aarch64"))]
-
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use std::time::Instant;
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use synapse_core::embedder_trait::TextEmbedder;
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn percentile(mut xs: Vec<f64>, p: f64) -> f64 {
     xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let i = ((xs.len() as f64 - 1.0) * p).round() as usize;
     xs[i]
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn bench(label: &str, e: &dyn TextEmbedder, texts: &[String], iters: usize) {
     // Warmup
-    let _ = e
-        .embed_batch(&texts[..1.min(texts.len())].to_vec())
-        .unwrap();
+    let _ = e.embed_batch(&texts[..1.min(texts.len())]).unwrap();
 
     // Single-doc latency
     let mut singles = Vec::with_capacity(iters);
@@ -51,7 +51,7 @@ fn bench(label: &str, e: &dyn TextEmbedder, texts: &[String], iters: usize) {
         let mut totals = Vec::with_capacity(20);
         for _ in 0..20 {
             let t0 = Instant::now();
-            let _ = e.embed_batch(&texts[..bs].to_vec()).unwrap();
+            let _ = e.embed_batch(&texts[..bs]).unwrap();
             totals.push(t0.elapsed().as_secs_f64() * 1000.0);
         }
         let p50 = percentile(totals.clone(), 0.50);
@@ -60,6 +60,7 @@ fn bench(label: &str, e: &dyn TextEmbedder, texts: &[String], iters: usize) {
     }
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn main() {
     let texts: Vec<String> = (0..100)
         .map(|i| {
@@ -84,4 +85,9 @@ fn main() {
             Err(e) => eprintln!("mlx skipped: {e}"),
         }
     }
+}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn main() {
+    eprintln!("bench_embed_mlx requires Apple Silicon");
 }

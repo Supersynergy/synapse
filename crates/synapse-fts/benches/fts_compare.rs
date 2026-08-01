@@ -1,6 +1,5 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rusqlite::Connection;
-use std::path::Path;
 use synapse_fts::FtsIndex;
 use tempfile::TempDir;
 

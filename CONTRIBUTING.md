@@ -8,7 +8,7 @@ research. Keep pull requests inside one clearly named surface.
 Rust 1.95 is pinned by `rust-toolchain.toml`.
 
 ```sh
-git clone https://github.com/Supersynergy/synapse-agent-memory
+git clone https://github.com/Supersynergy/synapse-memory
 cd synapse
 cargo test --locked -p synapse-cli --no-default-features
 ```

@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-repo="${SYNAPSE_REPO:-https://github.com/Supersynergy/synapse-agent-memory}"
+repo="${SYNAPSE_REPO:-https://github.com/Supersynergy/synapse-memory}"
 prefix="${SYNAPSE_PREFIX:-$HOME/.local}"
 db="${SYNAPSE_DB:-$HOME/.synapse/brain.db}"
 default_version="1.1.0-rc.3"

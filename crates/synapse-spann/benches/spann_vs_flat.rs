@@ -1,9 +1,11 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use rand::{Rng, RngExt};
+use rand::RngExt;
 use std::time::Instant;
 use synapse_spann::{SpannConfig, SpannIndex};
 
-fn gen_docs(n: usize, dim: usize) -> Vec<(u64, Vec<f32>)> {
+type DocVector = (u64, Vec<f32>);
+
+fn gen_docs(n: usize, dim: usize) -> Vec<DocVector> {
     let mut rng = rand::rng();
     (0..n)
         .map(|i| {

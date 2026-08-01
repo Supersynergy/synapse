@@ -21,11 +21,8 @@ rmp-serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core", default-features = false, features = ["backend-rusqlite", "embed", "turbo"] }
+synapse-core = { path = "../synapse-core", default-features = false, features = ["backend-rusqlite", "embed", "turbo"] }
 synapse-rerank = { path = "../synapse-rerank", features = [] }
-synapse-license = { path = "../../vendor/synapse-db/crates/synapse-license", optional = true }
-hex = { version = "0.4", optional = true }
-dirs = { version = "6", optional = true }
 ed25519-dalek.workspace = true
 axum.workspace = true
 metrics = "0.24"
@@ -40,5 +37,5 @@ embed-mlx = ["synapse-core/embed-mlx"]
 ann-usearch = ["synapse-core/ann-usearch"]
 simsimd = ["synapse-core/simsimd"]
 tantivy-fts = ["synapse-core/tantivy-fts"]
-licensed = ["dep:synapse-license", "dep:hex", "dep:dirs", "synapse-core/encryption"]
+licensed = []
 onnx = ["synapse-rerank/onnx"]

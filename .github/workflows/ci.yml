@@ -16,13 +16,12 @@ jobs:
     name: fmt · clippy · layering
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # pinned 2026-06-20
         with:
-          submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
-        with:
+          toolchain: "1.95.0"
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: layering (ADR 0001)
         run: python3 scripts/check-layering.py
       - name: rustfmt
@@ -31,7 +30,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
-    name: test · ${{ matrix.os }}
+    name: test · ${{ matrix.os }} · ${{ matrix.mode }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -39,34 +38,57 @@ jobs:
         include:
           - os: linux-x64
             runner: ubuntu-latest
+            mode: full
+            rustflags: ""
           - os: linux-arm64
             runner: ubuntu-24.04-arm
+            mode: full
+            rustflags: ""
           - os: macos-x64
-            runner: macos-13
+            runner: macos-15-intel
+            mode: portable
+            rustflags: ""
           - os: macos-arm64
-            runner: macos-14
+            runner: macos-15
+            mode: full
+            rustflags: "-C target-feature=+neon,+aes,+sha2"
           - os: windows-x64
             runner: windows-2022
+            mode: portable
+            rustflags: ""
           - os: windows-arm64
             runner: windows-11-arm
+            mode: portable
+            rustflags: ""
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # pinned 2026-06-20
         with:
-          submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+          toolchain: "1.95.0"
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: ${{ matrix.os }}
-      - uses: taiki-e/install-action@nextest
-        if: matrix.os != 'windows-arm64'
+      - uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2
+        if: matrix.mode == 'full'
+        with:
+          tool: nextest
       - name: check
-        run: cargo check --workspace
+        shell: bash
+        run: |
+          if [[ "${{ matrix.mode }}" == "full" ]]; then
+            cargo check --locked --workspace
+          else
+            cargo check --locked -p synapse-cli --no-default-features
+          fi
       - name: test
         shell: bash
         run: |
-          if command -v cargo-nextest >/dev/null 2>&1; then
+          if [[ "${{ matrix.mode }}" == "portable" ]]; then
+            cargo test --locked -p synapse-cli --no-default-features
+          elif command -v cargo-nextest >/dev/null 2>&1; then
             cargo nextest run --workspace --no-fail-fast
           else
             cargo test --workspace --no-fail-fast
           fi
-

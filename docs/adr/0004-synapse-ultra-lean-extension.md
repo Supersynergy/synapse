@@ -67,7 +67,7 @@ the first release that "just runs properly in general".
 - The Astro 7 dashboard can later read the same SQLite views via read-only
   ATTACH — no API changes required.
 - `synapse-graph` (Datalog) is deprecated but not removed. Users who need
-  it can still build it via `vendor/synapse-db`. New code should use
+  it can still build it from `crates/synapse-graph`. New code should use
   `synapse-ultra::graph`.
 
 ## Alternatives Rejected

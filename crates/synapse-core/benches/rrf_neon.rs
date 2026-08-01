@@ -3,7 +3,8 @@
 //! Run:
 //!   cargo bench -p synapse-core --bench rrf_neon
 
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use std::hint::black_box;
 use synapse_core::types::Hit;
 
 fn make_hits(n: usize, id_offset: i64) -> Vec<Hit> {

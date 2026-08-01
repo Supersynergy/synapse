@@ -49,7 +49,7 @@ dependencies = [
  "bech32",
  "chacha20poly1305",
  "cookie-factory",
- "hmac 0.12.1",
+ "hmac",
  "i18n-embed",
  "i18n-embed-fl",
  "lazy_static",
@@ -73,7 +73,7 @@ dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
  "cookie-factory",
- "hkdf 0.12.4",
+ "hkdf",
  "io_tee",
  "nom 7.1.3",
  "rand 0.8.7",
@@ -364,7 +364,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00bdb5da18dac48ca2cc7cd4a98e533e8635a58e2361d13a1a4ee3888e0d72f1"
 dependencies = [
  "aws-lc-sys",
- "untrusted 0.7.1",
  "zeroize",
 ]
 
@@ -1030,12 +1029,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cmov"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
-
-[[package]]
 name = "codespan-reporting"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1367,7 +1360,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
- "rand_core 0.6.4",
  "typenum",
 ]
 
@@ -1399,15 +1391,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "704a3c26996a80471189265814dbc2c257598b96b8a7feae2d31ace646bb9782"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "ctutils"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e"
-dependencies = [
- "cmov",
 ]
 
 [[package]]
@@ -1633,7 +1616,6 @@ dependencies = [
  "block-buffer 0.12.1",
  "const-oid 0.10.2",
  "crypto-common 0.2.2",
- "ctutils",
 ]
 
 [[package]]
@@ -2695,16 +2677,7 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
 dependencies = [
- "hmac 0.12.1",
-]
-
-[[package]]
-name = "hkdf"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4aaa26c720c68b866f2c96ef5c1264b3e6f473fe5d4ce61cd44bbe913e553018"
-dependencies = [
- "hmac 0.13.0",
+ "hmac",
 ]
 
 [[package]]
@@ -2714,15 +2687,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.7",
-]
-
-[[package]]
-name = "hmac"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
-dependencies = [
- "digest 0.11.3",
 ]
 
 [[package]]
@@ -3351,23 +3315,6 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "jsonwebtoken"
-version = "10.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eba32bfb4ffdeaca3e34431072faf01745c9b26d25504aa7a6cf5684334fc4fc"
-dependencies = [
- "aws-lc-rs",
- "base64 0.22.1",
- "ed25519-dalek",
- "getrandom 0.2.17",
- "js-sys",
- "serde",
- "serde_json",
- "signature",
- "zeroize",
 ]
 
 [[package]]
@@ -4567,7 +4514,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
 dependencies = [
  "digest 0.10.7",
- "hmac 0.12.1",
+ "hmac",
 ]
 
 [[package]]
@@ -5434,7 +5381,7 @@ dependencies = [
  "cfg-if",
  "getrandom 0.2.17",
  "libc",
- "untrusted 0.9.0",
+ "untrusted",
  "windows-sys 0.52.0",
 ]
 
@@ -5657,7 +5604,7 @@ dependencies = [
  "aws-lc-rs",
  "ring",
  "rustls-pki-types",
- "untrusted 0.9.0",
+ "untrusted",
 ]
 
 [[package]]
@@ -6284,14 +6231,6 @@ dependencies = [
 
 [[package]]
 name = "synapse-ann"
-version = "1.0.1-rc.1"
-dependencies = [
- "thiserror 2.0.19",
- "usearch",
-]
-
-[[package]]
-name = "synapse-ann"
 version = "2.1.0"
 dependencies = [
  "criterion 0.8.2",
@@ -6319,63 +6258,12 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "synapse-core 1.0.1-rc.1",
- "synapse-graph 1.0.1-rc.1",
+ "synapse-core",
+ "synapse-graph",
  "synapse-learn",
  "tempfile",
  "tikv-jemallocator",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "synapse-core"
-version = "1.0.1-rc.1"
-dependencies = [
- "age",
- "aho-corasick",
- "anyhow",
- "argon2",
- "async-trait",
- "base64 0.22.1",
- "bitflags 2.13.1",
- "blake3",
- "dashmap",
- "ed25519-dalek",
- "fastbloom",
- "fastembed",
- "getrandom 0.2.17",
- "half",
- "instant-distance",
- "libc",
- "linfa",
- "linfa-clustering",
- "ndarray 0.16.1",
- "once_cell",
- "parking_lot",
- "rand 0.10.2",
- "rayon",
- "redb",
- "regex",
- "reqwest 0.13.4",
- "rmp-serde",
- "rmpv",
- "rusqlite",
- "serde",
- "serde_json",
- "simsimd",
- "sqlite-vec",
- "synapse-ann 1.0.1-rc.1",
- "synapse-engine 1.0.1-rc.1",
- "synapse-fts 1.0.1-rc.1",
- "synapse-kernel 0.1.0",
- "synapse-quant 1.0.1-rc.1",
- "tempfile",
- "thiserror 2.0.19",
- "tokio",
- "toml 1.1.3+spec-1.1.0",
- "tracing",
- "yrs",
- "zstd",
 ]
 
 [[package]]
@@ -6429,13 +6317,13 @@ dependencies = [
  "sha2 0.11.0",
  "simsimd",
  "sqlite-vec",
- "synapse-ann 2.1.0",
- "synapse-engine 2.1.0",
- "synapse-fts 2.1.0",
- "synapse-graph 2.1.0",
- "synapse-kernel 0.1.1",
+ "synapse-ann",
+ "synapse-engine",
+ "synapse-fts",
+ "synapse-graph",
+ "synapse-kernel",
  "synapse-obs",
- "synapse-quant 2.1.0",
+ "synapse-quant",
  "synapse-spann",
  "tantivy",
  "tempfile",
@@ -6458,13 +6346,6 @@ dependencies = [
 
 [[package]]
 name = "synapse-engine"
-version = "1.0.1-rc.1"
-dependencies = [
- "obfstr",
-]
-
-[[package]]
-name = "synapse-engine"
 version = "2.1.0"
 dependencies = [
  "obfstr",
@@ -6480,21 +6361,12 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "synapse-core 1.0.1-rc.1",
- "synapse-graph 1.0.1-rc.1",
+ "synapse-core",
+ "synapse-graph",
  "thiserror 2.0.19",
  "tokio",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "synapse-fts"
-version = "1.0.1-rc.1"
-dependencies = [
- "anyhow",
- "serde_json",
- "tantivy",
 ]
 
 [[package]]
@@ -6511,17 +6383,6 @@ dependencies = [
 
 [[package]]
 name = "synapse-graph"
-version = "1.0.1-rc.1"
-dependencies = [
- "rusqlite",
- "serde",
- "serde_json",
- "thiserror 2.0.19",
- "tokio",
-]
-
-[[package]]
-name = "synapse-graph"
 version = "2.1.0"
 dependencies = [
  "regex",
@@ -6531,13 +6392,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.19",
  "tokio",
-]
-
-[[package]]
-name = "synapse-kernel"
-version = "0.1.0"
-dependencies = [
- "half",
 ]
 
 [[package]]
@@ -6557,28 +6411,8 @@ dependencies = [
  "rusqlite",
  "serde_json",
  "statrs",
- "synapse-core 1.0.1-rc.1",
+ "synapse-core",
  "tempfile",
-]
-
-[[package]]
-name = "synapse-license"
-version = "1.0.1-rc.1"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "blake3",
- "chacha20poly1305",
- "chrono",
- "dirs",
- "getrandom 0.2.17",
- "hkdf 0.13.0",
- "jsonwebtoken",
- "rand 0.10.2",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -6625,14 +6459,6 @@ dependencies = [
 
 [[package]]
 name = "synapse-quant"
-version = "1.0.1-rc.1"
-dependencies = [
- "rand 0.10.2",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "synapse-quant"
 version = "2.1.0"
 dependencies = [
  "rand 0.10.2",
@@ -6649,7 +6475,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "synapse-core 1.0.1-rc.1",
+ "synapse-core",
  "thiserror 2.0.19",
  "tracing",
 ]
@@ -6664,9 +6490,9 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "synapse-ann 1.0.1-rc.1",
- "synapse-core 1.0.1-rc.1",
- "synapse-engine 1.0.1-rc.1",
+ "synapse-ann",
+ "synapse-core",
+ "synapse-engine",
  "synapse-rerank",
  "tempfile",
  "tokio",
@@ -6685,7 +6511,7 @@ dependencies = [
  "rand 0.10.2",
  "serde",
  "serde_json",
- "synapse-kernel 0.1.1",
+ "synapse-kernel",
  "tempfile",
  "tracing",
 ]
@@ -6726,9 +6552,7 @@ dependencies = [
  "anyhow",
  "axum 0.8.9",
  "clap",
- "dirs",
  "ed25519-dalek",
- "hex",
  "metrics",
  "metrics-exporter-prometheus",
  "mimalloc",
@@ -6737,8 +6561,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "synapse-core 1.0.1-rc.1",
- "synapse-license",
+ "synapse-core",
  "synapse-rerank",
  "tokio",
  "tracing",
@@ -7711,12 +7534,6 @@ dependencies = [
  "crypto-common 0.1.7",
  "subtle",
 ]
-
-[[package]]
-name = "untrusted"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 
 [[package]]
 name = "untrusted"

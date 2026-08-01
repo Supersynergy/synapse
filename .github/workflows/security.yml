@@ -10,11 +10,11 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # pinned 2026-06-20
         with:
-          submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@v2
+          toolchain: "1.95.0"
+      - uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2
         with:
           tool: cargo-deny,cargo-audit
       - name: cargo-deny

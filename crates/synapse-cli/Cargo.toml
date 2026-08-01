@@ -18,9 +18,9 @@ tracing-subscriber.workspace = true
 blake3.workspace = true
 rusqlite.workspace = true
 synapse-learn = { path = "../synapse-learn" }
-synapse-graph = { path = "../../vendor/synapse-db/crates/synapse-graph" }
+synapse-graph = { path = "../synapse-graph" }
 # synapse-core base (no embed features) — embed variant selected via [features] below.
-synapse-core = { path = "../../vendor/synapse-db/crates/synapse-core" }
+synapse-core = { path = "../synapse-core", default-features = false, features = ["backend-rusqlite"] }
 tempfile = "3"
 csv = "1"
 # optional: parquet import/export via arrow2 (lightweight, no arrow ecosystem pull)
@@ -33,7 +33,7 @@ tempfile = "3"
 
 [features]
 # default: static ORT + jemalloc (lower fragmentation, better throughput for alloc-heavy HNSW workloads).
-default = ["static-ort", "jemalloc", "fresh-registry"]
+default = ["static-ort", "jemalloc", "fresh-registry", "sharding"]
 # jemalloc: replace system allocator with jemalloc for release binary.
 jemalloc = ["dep:tikv-jemallocator"]
 # static-ort: enable synapse-core's `embed` feature (ORT linked statically).
@@ -45,6 +45,7 @@ static-ort = ["synapse-core/embed"]
 # Ship libonnxruntime.so alongside the binary (see release/README.md for download URL).
 cross-linux = ["synapse-core/embed-dynamic"]
 fresh-registry = ["synapse-core/fresh-registry"]
+sharding = ["synapse-core/sharding"]
 embed-768 = ["synapse-core/embed-768"]
 embed-1024 = ["synapse-core/embed-1024"]
 # import-parquet: enable Parquet import/export (adds ~3MB to binary)

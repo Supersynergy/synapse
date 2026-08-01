@@ -64,7 +64,7 @@ stale, archived, and notification records without deleting them.
 ```sh
 SYNAPSE_PREFIX="$HOME/.local" \
 SYNAPSE_DB="$HOME/.synapse/brain.db" \
-SYNAPSE_REPO="https://github.com/Supersynergy/synapse-agent-memory" \
+SYNAPSE_REPO="https://github.com/Supersynergy/synapse-memory" \
   release/synapse-agent-memory/install.sh --version 1.1.0-rc.3
 ```
 
